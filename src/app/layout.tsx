@@ -4,6 +4,7 @@ import { Cormorant_Garamond, Outfit, DM_Mono } from 'next/font/google';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
 import { Nav } from '@/components/layout/Nav';
+import { Providers } from '@/components/layout/Providers';
 import './globals.css';
 
 const cormorant = Cormorant_Garamond({
@@ -41,8 +42,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${cormorant.variable} ${outfit.variable} ${dmMono.variable}`}>
       <body className="bg-cream text-ink font-sans antialiased">
-        <Nav session={session} />
-        <main>{children}</main>
+        <Providers>
+          <Nav session={session} />
+          <main>{children}</main>
+        </Providers>
       </body>
     </html>
   );
