@@ -104,16 +104,30 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
         const products = await this.withRetry(async () => {
           const res = await fetch(url, {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (compatible; ChronoConsigliere/1.0)',
-              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-origin',
             },
           });
           if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-          const json = await res.json() as { products: ShopifyProduct[] };
+          const text = await res.text();
+          let json: { products: ShopifyProduct[] };
+          try {
+            json = JSON.parse(text);
+          } catch {
+            throw new Error(`Non-JSON response (${text.slice(0, 100)})`);
+          }
           return json.products;
         });
 
         if (!products || products.length === 0) {
+          this.log('info', `Page ${page} returned 0 products — stopping`);
           hasMore = false;
           break;
         }
@@ -191,7 +205,7 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
       }
     }
 
-    this.log('info', `Done. ${listings.length} watch listings, ${errors.length} errors`);
+    this.log('info', `Done. ${listings.length} watch listings across ${page} page(s), ${errors.length} errors`);
     return { listings, totalFound: listings.length, errors };
   }
 
