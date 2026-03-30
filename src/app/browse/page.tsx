@@ -2,8 +2,10 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
 import { getWatches, getFilterOptions } from '@/lib/watches/queries';
+import { Suspense } from 'react';
 import { WatchCard } from '@/components/watches/WatchCard';
 import { BrowseFilters } from '@/components/watches/BrowseFilters';
+import { SortSelect } from '@/components/watches/SortSelect';
 import Link from 'next/link';
 import type { BrowseFilters as FiltersType } from '@/types';
 
@@ -55,7 +57,9 @@ export default async function BrowsePage({ searchParams }: PageProps) {
 
   return (
     <div className="flex min-h-[calc(100vh-52px)]">
-      <BrowseFilters {...filterOptions} />
+      <Suspense fallback={<div className="w-[220px] flex-shrink-0 bg-surface border-r border-[var(--border)]" />}>
+        <BrowseFilters {...filterOptions} />
+      </Suspense>
 
       <div className="flex-1 flex flex-col">
         {/* Search + Sort bar */}
@@ -68,21 +72,7 @@ export default async function BrowsePage({ searchParams }: PageProps) {
               className="w-full px-3 py-2 text-[13px] border border-[var(--border)] rounded bg-cream text-ink outline-none focus:border-gold"
             />
           </form>
-          <select
-            name="sort"
-            defaultValue={filters.sort}
-            onChange={e => {
-              const url = new URL(window.location.href);
-              url.searchParams.set('sort', e.target.value);
-              window.location.href = url.toString();
-            }}
-            className="px-3 py-2 text-[12px] border border-[var(--border)] rounded bg-cream text-ink outline-none cursor-pointer"
-          >
-            <option value="newest">Newest listed</option>
-            <option value="price-asc">Price: low to high</option>
-            <option value="price-desc">Price: high to low</option>
-            <option value="most-liked">Most liked</option>
-          </select>
+          <SortSelect defaultValue={filters.sort ?? 'newest'} />
           <span className="text-[12px] text-muted font-mono whitespace-nowrap">
             {total.toLocaleString()} watches
           </span>
