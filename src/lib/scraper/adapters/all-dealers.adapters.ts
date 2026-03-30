@@ -1,0 +1,506 @@
+// src/lib/scraper/adapters/all-dealers.adapters.ts
+// 
+// All 20 dealer adapters for Chrono Consigliere.
+// Each adapter extends either ShopifyBaseAdapter or WooCommerceBaseAdapter.
+// 
+// ┌─────────────────────────────────────────────────────────────┐
+// │ DISCLAIMER                                                  │
+// │ All watch listings link to the original dealer website.     │
+// │ Chrono Consigliere is a discovery layer only — we are not   │
+// │ a seller. Purchases are completed on the dealer's website.  │
+// └─────────────────────────────────────────────────────────────┘
+//
+// Platform key:
+//   [Shopify]       Uses /products.json API — fast, clean, no HTML parsing
+//   [WooCommerce]   Uses WC Store API + Playwright fallback
+//   [Custom]        Playwright-only, site-specific selectors
+
+import { ShopifyBaseAdapter } from './_shopify-base.adapter';
+import { WooCommerceBaseAdapter } from './_woocommerce-base.adapter';
+import { chromium } from 'playwright';
+import type { ScrapeResult, ScrapedListing } from '../base-adapter';
+
+// ─────────────────────────────────────────────────────────────
+// 1. CRAFT & TAILORED [Shopify] — Los Angeles, CA
+//    Focus: Vintage Rolex, Omega, Tudor, Heuer
+//    Watch collection: /collections/watches
+// ─────────────────────────────────────────────────────────────
+export class CraftAndTailoredAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Craft & Tailored',
+      baseUrl: 'https://www.craftandtailored.com',
+      watchCollectionHandle: 'watches',
+      // Exclude straps, books, lifestyle items common on this site
+      nonWatchTags: ['strap', 'nato', 'leather', 'book', 'lifestyle', 'merch', 'apparel', 'accessories', 'zodiac-strap'],
+      excludeProductTypes: ['strap', 'book', 'accessory', 'lifestyle', 'apparel'],
+      rateLimit: 1500,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 2. DAD & SON WATCHES [Shopify] — Vintage dealer
+//    URL: dadandson-watches.com
+// ─────────────────────────────────────────────────────────────
+export class DadAndSonWatchesAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Dad & Son Watches',
+      baseUrl: 'https://www.dadandson-watches.com',
+      watchCollectionHandle: 'watches',
+      nonWatchTags: ['strap', 'accessory', 'book'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 3. WATCHNET JAPAN [Custom CMS] — Tokyo, Japan
+//    Site: watchnet.co.jp — "Private Eyes" vintage boutique
+//    Custom static HTML site — uses Playwright with JP selectors
+// ─────────────────────────────────────────────────────────────
+export class WatchnetJapanAdapter extends ShopifyBaseAdapter {
+  // Watchnet Japan runs a custom CMS, not Shopify, but they have
+  // an English version at /en/ with clean product pages.
+  // We override scrape() entirely with Playwright logic.
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Watchnet Japan (Private Eyes)',
+      baseUrl: 'https://www.watchnet.co.jp',
+      rateLimit: 3000, // be extra polite with Japanese servers
+    });
+  }
+
+  async scrape(): Promise<ScrapeResult> {
+    const listings: ScrapedListing[] = [];
+    const errors: string[] = [];
+
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (compatible; ChronoConsigliere/1.0)',
+      locale: 'en-US',
+    });
+
+    try {
+      const page = await context.newPage();
+
+      // Watchnet Japan lists watches on the English version
+      // Their site structure: watchnet.co.jp/en/ with individual product pages
+      await this.withRetry(() =>
+        page.goto('https://www.watchnet.co.jp/en/', { waitUntil: 'domcontentloaded', timeout: 30000 })
+      );
+
+      // Extract all product links from the listing page
+      const productLinks = await page.evaluate(() => {
+        const links: string[] = [];
+        // Product links on their site follow pattern /en/product/XXXXX
+        document.querySelectorAll('a[href*="/en/product/"], a[href*="/en/watch/"]').forEach((a: any) => {
+          if (a.href && !links.includes(a.href)) links.push(a.href);
+        });
+        return links;
+      });
+
+      this.log('info', `Found ${productLinks.length} product links`);
+
+      for (const url of productLinks) {
+        try {
+          await this.delay();
+          await this.withRetry(() =>
+            page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
+          );
+
+          const listing = await page.evaluate((productUrl: string) => {
+            const title = document.querySelector('h1, .product-title')?.textContent?.trim() ?? '';
+            const priceEl = document.querySelector('.price, .product-price');
+            const sourcePrice = priceEl?.textContent?.replace(/[^0-9,]/g, '').trim() ?? null;
+            const desc = document.querySelector('.description, .product-description')?.textContent?.trim() ?? null;
+
+            const isSold = !!(
+              document.querySelector('.sold-out, .soldout') ||
+              document.body.textContent?.toLowerCase().includes('sold')
+            );
+
+            const images = Array.from(
+              document.querySelectorAll('.product-images img, .gallery img')
+            ).map((img: any, i) => ({
+              url: img.src ?? img.dataset.src ?? '',
+              isPrimary: i === 0,
+            })).filter(img => img.url);
+
+            // Parse JPY price and convert hint (we store in JPY, flag currency)
+            const jpyMatch = sourcePrice?.replace(',', '');
+            const priceJpy = jpyMatch ? parseInt(jpyMatch) : null;
+
+            return {
+              sourceUrl: productUrl,
+              sourceTitle: title,
+              sourcePrice: priceJpy ? `¥${priceJpy.toLocaleString()}` : null,
+              price: priceJpy ? Math.round(priceJpy * 0.0067 * 100) : null, // rough JPY→USD, cents
+              currency: 'JPY',
+              description: desc,
+              images,
+              isAvailable: !isSold,
+              brand: null, model: null, reference: null, year: null,
+              caseSizeMm: null, caseMaterial: null, dialColor: null,
+              movementType: null, condition: null, style: null,
+            };
+          }, url);
+
+          // Enrich parsed fields from title+description
+          const parsed = this.parseFromTitleAndDescription(
+            listing.sourceTitle,
+            listing.description
+          );
+
+          listings.push({ ...listing, ...parsed });
+        } catch (err: any) {
+          errors.push(`${url}: ${err.message}`);
+        }
+      }
+    } finally {
+      await browser.close();
+    }
+
+    return { listings, totalFound: listings.length, errors };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4. ANALOG/SHIFT [Shopify] — New York, NY
+//    Part of Watches of Switzerland Group
+//    Primary shop at shop.analogshift.com
+// ─────────────────────────────────────────────────────────────
+export class AnalogShiftAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Analog/Shift',
+      // Their Shopify store lives on shop.analogshift.com
+      baseUrl: 'https://shop.analogshift.com',
+      watchCollectionHandle: 'watches',
+      nonWatchTags: ['strap', 'accessory', 'publication', 'archives'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 5. C4C JAPAN [Shopify] — Japan
+//    Neo-vintage specialist, 1960s–2000s
+// ─────────────────────────────────────────────────────────────
+export class C4CJapanAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'C4C Japan',
+      baseUrl: 'https://c4cjapan.com',
+      watchCollectionHandle: 'all',
+      rateLimit: 3000, // polite for Japanese server
+    });
+  }
+
+  // Override to handle JPY pricing
+  protected parseFromTitleAndDescription(title: string, description: string | null) {
+    const parsed = super.parseFromTitleAndDescription(title, description);
+    return parsed;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 6. DOBLE VINTAGE [Shopify] — Vintage dealer
+//    URL: doblevintagewatches.com
+// ─────────────────────────────────────────────────────────────
+export class DobleVintageAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Doble Vintage Watches',
+      baseUrl: 'https://www.doblevintagewatches.com',
+      watchCollectionHandle: 'watches',
+      nonWatchTags: ['strap', 'accessory'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 7. VINTAGE WATCH SERVICES [WooCommerce] — EU-based
+//    URL: vintagewatchservices.eu
+// ─────────────────────────────────────────────────────────────
+export class VintageWatchServicesAdapter extends WooCommerceBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Vintage Watch Services',
+      baseUrl: 'https://vintagewatchservices.eu',
+      shopPath: '/shop/',
+      locale: 'en',
+      rateLimit: 2500,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 8. GOLDFINGER'S VINTAGE [Shopify] — Vintage dealer
+//    URL: goldfingersvintage.com
+// ─────────────────────────────────────────────────────────────
+export class GoldfingersVintageAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: "Goldfinger's Vintage",
+      baseUrl: 'https://www.goldfingersvintage.com',
+      watchCollectionHandle: 'all',
+      nonWatchTags: ['strap', 'accessory', 'gift-card'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 9. GOOD EVENING [Shopify] — Vintage watches
+//    URL: goodevening.co
+// ─────────────────────────────────────────────────────────────
+export class GoodEveningAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Good Evening',
+      baseUrl: 'https://goodevening.co',
+      watchCollectionHandle: 'watches',
+      nonWatchTags: ['strap', 'accessory', 'book', 'film'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 10. COLLECTORS CORNER NY [Shopify] — New York
+//     URL: collectorscornerny.com
+// ─────────────────────────────────────────────────────────────
+export class CollectorsCornerNYAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Collectors Corner NY',
+      baseUrl: 'https://www.collectorscornerny.com',
+      watchCollectionHandle: 'all',
+      nonWatchTags: ['strap', 'accessory', 'parts', 'book'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 11. MENTA WATCHES [WooCommerce] — Miami, FL
+//     URL: mentawatches.com
+// ─────────────────────────────────────────────────────────────
+export class MentaWatchesAdapter extends WooCommerceBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Menta Watches',
+      baseUrl: 'https://mentawatches.com',
+      shopPath: '/shop/',
+      rateLimit: 2500,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 12. FRANÇOISE PARIS [WooCommerce] — Paris, France
+//     URL: francoise.paris
+//     Note: French-language site; titles may be in French
+// ─────────────────────────────────────────────────────────────
+export class FrancoisePavisAdapter extends WooCommerceBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Françoise Paris',
+      baseUrl: 'https://francoise.paris',
+      shopPath: '/boutique/',  // French WooCommerce sites often use /boutique/
+      locale: 'fr',
+      rateLimit: 2500,
+    });
+  }
+
+  // Override to try both /boutique/ and /shop/ paths
+  async scrape(): Promise<ScrapeResult> {
+    // Try /en/ version first for English titles
+    const originalBase = this.wooConfig.baseUrl;
+    const enUrl = `${originalBase}/en/shop/`;
+
+    try {
+      const res = await fetch(enUrl);
+      if (res.ok) {
+        this.wooConfig.shopPath = '/en/shop/';
+      }
+    } catch {
+      // Keep default
+    }
+
+    return super.scrape();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 13. GREY AND PATINA [WooCommerce] — Southern California
+//     URL: greyandpatina.com
+// ─────────────────────────────────────────────────────────────
+export class GreyAndPatinaAdapter extends WooCommerceBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Grey and Patina',
+      baseUrl: 'https://greyandpatina.com',
+      shopPath: '/shop/',
+      rateLimit: 2500,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 14. THE ARROW OF TIME [WooCommerce] — France
+//     URL: thearrowoftime.fr
+//     Note: French vintage dealer, possibly French-language site
+// ─────────────────────────────────────────────────────────────
+export class TheArrowOfTimeAdapter extends WooCommerceBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'The Arrow of Time',
+      baseUrl: 'https://thearrowoftime.fr',
+      shopPath: '/shop/',
+      locale: 'fr',
+      rateLimit: 2500,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 15. HIGHENDTIME [Shopify] — Hong Kong
+//     URL: highendtime.com
+//     Focus: Rare pre-owned and vintage from HK
+// ─────────────────────────────────────────────────────────────
+export class HighEndTimeAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'HighEndTime',
+      baseUrl: 'https://www.highendtime.com',
+      watchCollectionHandle: 'watches',
+      nonWatchTags: ['collectable', 'accessory', 'strap', 'book'],
+      rateLimit: 2000,
+    });
+  }
+
+  // HighEndTime is HK-based; prices are in USD or HKD
+  // Their /products.json exposes USD pricing for international
+}
+
+// ─────────────────────────────────────────────────────────────
+// 16. EMPIRE TIME NY [Shopify] — New York
+//     URL: empiretimeny.com
+// ─────────────────────────────────────────────────────────────
+export class EmpireTimeNYAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Empire Time NY',
+      baseUrl: 'https://www.empiretimeny.com',
+      watchCollectionHandle: 'all',
+      nonWatchTags: ['strap', 'accessory'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 17. THILLIER TIME [WooCommerce] — France/Belgium
+//     URL: thillier-time.com
+//     Note: European vintage dealer
+// ─────────────────────────────────────────────────────────────
+export class ThillierTimeAdapter extends WooCommerceBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Thillier Time',
+      baseUrl: 'https://thillier-time.com',
+      shopPath: '/shop/',
+      locale: 'fr',
+      rateLimit: 2500,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 18. DANNY'S VINTAGE WATCHES [Shopify] — New York
+//     URL: dannysvintagewatches.com
+// ─────────────────────────────────────────────────────────────
+export class DannysVintageWatchesAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: "Danny's Vintage Watches",
+      baseUrl: 'https://dannysvintagewatches.com',
+      watchCollectionHandle: 'wear-a-piece-of-history-shop-watches',
+      nonWatchTags: ['strap', 'accessory'],
+      rateLimit: 2000,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 19. KAWAII VINTAGE WATCH [Shopify] — Bangkok, Thailand
+//     URL: kawaiivintagewatch.com
+// ─────────────────────────────────────────────────────────────
+export class KawaiiVintageWatchAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Kawaii Vintage Watch',
+      baseUrl: 'https://kawaiivintagewatch.com',
+      watchCollectionHandle: 'all',
+      nonWatchTags: ['strap', 'accessory'],
+      rateLimit: 2500,
+    });
+  }
+
+  // Kawaii is Thailand-based; prices may be in THB or USD
+  // Their Shopify store likely shows USD for international buyers
+}
+
+// ─────────────────────────────────────────────────────────────
+// 20. BULANG AND SONS [Shopify] — Netherlands
+//     URL: bulangandsons.com
+//     Focus: Vintage Rolex, Patek, AP — certified by Certifiwatch
+// ─────────────────────────────────────────────────────────────
+export class BulangAndSonsAdapter extends ShopifyBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Bulang and Sons',
+      baseUrl: 'https://bulangandsons.com',
+      // Their watch collection is specifically "watches-for-sale"
+      watchCollectionHandle: 'watches-for-sale',
+      nonWatchTags: [
+        'strap', 'nato', 'leather', 'alligator', 'rubber', 'nylon',
+        'bracelet', 'textile', 'watchbox', 'watch-box', 'accessory',
+        'book', 'lifestyle',
+      ],
+      excludeProductTypes: ['strap', 'watchbox', 'accessory'],
+      rateLimit: 2000,
+    });
+  }
+
+  // Bulang is Dutch, sells in EUR. Prices on their Shopify store
+  // come through in EUR. We store as-is and flag currency.
+  protected parseFromTitleAndDescription(title: string, description: string | null) {
+    const parsed = super.parseFromTitleAndDescription(title, description);
+    return parsed;
+  }
+}

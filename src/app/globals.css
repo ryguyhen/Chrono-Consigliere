@@ -1,0 +1,43 @@
+/* src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cream: #F5F1E8;
+  --parchment: #EDE8DB;
+  --ink: #1A1612;
+  --ink-2: #2E2820;
+  --muted: #7A7268;
+  --gold: #C4963A;
+  --gold-dark: #8B6914;
+  --surface: #FDFBF7;
+  --border: rgba(26, 22, 18, 0.12);
+  --border-soft: rgba(26, 22, 18, 0.07);
+  --success: #2D6A4F;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--cream);
+  color: var(--ink);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(196, 150, 58, 0.2);
+}
