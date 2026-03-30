@@ -6,6 +6,7 @@ import { getWatchById } from '@/lib/watches/queries';
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
 import Image from 'next/image';
+import { WatchSaveButton } from '@/components/watches/WatchSaveButton';
 
 // DISCLAIMER: This page links to the original dealer website for purchase.
 // Chrono Consigliere is not a seller.
@@ -71,7 +72,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] min-h-[calc(100vh-96px)]">
         {/* Image panel */}
-        <div className="bg-parchment flex flex-col items-center justify-center p-8 min-h-[400px]">
+        <div className="bg-[#161616] flex flex-col items-center justify-center p-8 min-h-[400px]">
           <div className="relative w-full max-w-[500px] aspect-square rounded-lg overflow-hidden">
             {primaryImage ? (
               <Image
@@ -86,7 +87,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-48 h-48 rounded-full border-4 border-ink/10 flex items-center justify-center">
                   <div className="w-36 h-36 rounded-full border-2 border-ink/[0.07] flex items-center justify-center">
-                    <div className="font-serif text-[10px] tracking-widest uppercase text-ink/20">Dial</div>
+                    <div className="font-mono text-[9px] tracking-widest uppercase text-ink/20">Dial</div>
                   </div>
                 </div>
               </div>
@@ -112,13 +113,13 @@ export default async function WatchDetailPage({ params }: PageProps) {
         {/* Info panel */}
         <div className="bg-surface border-l border-[var(--border)] p-7 overflow-y-auto">
           <div className="text-[11px] font-medium tracking-[0.14em] uppercase text-gold mb-1.5">{watch.brand}</div>
-          <h1 className="font-serif text-[2rem] font-light leading-tight mb-2">{watch.model || watch.sourceTitle}</h1>
+          <h1 className="text-[1.8rem] font-semibold leading-tight tracking-[-0.03em] mb-2">{watch.model || watch.sourceTitle}</h1>
           {watch.reference && (
             <div className="font-mono text-[12px] text-muted mb-5">Ref. {watch.reference}{watch.year ? ` · ${watch.year}` : ''}</div>
           )}
 
           {/* Price */}
-          <div className="font-serif text-[2.4rem] font-light mb-1">{price ?? 'Price on request'}</div>
+          <div className="text-[2.2rem] font-semibold tracking-[-0.03em] mb-1">{price ?? 'Price on request'}</div>
           <div className="flex items-center gap-1.5 text-[12px] text-[var(--success)] font-medium mb-5">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] inline-block" />
             In Stock
@@ -130,7 +131,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
             <div className="flex items-center gap-2.5 p-3 bg-gold/[0.07] border border-gold/20 rounded mb-5 text-[12px]">
               <div className="flex">
                 {friendLikes.slice(0, 3).map((f, i) => (
-                  <div key={f.username} className="w-6 h-6 rounded-full bg-gold text-ink text-[8px] flex items-center justify-center font-medium border-2 border-surface" style={{ marginLeft: i > 0 ? '-6px' : 0 }}>
+                  <div key={f.username} className="w-6 h-6 rounded-full bg-gold text-black text-[8px] flex items-center justify-center font-bold border-2 border-surface" style={{ marginLeft: i > 0 ? '-6px' : 0 }}>
                     {(f.displayName ?? f.username)[0].toUpperCase()}
                   </div>
                 ))}
@@ -138,7 +139,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
               <span className="text-ink/70">
                 {friendLikes.slice(0, 2).map(f => f.displayName ?? f.username).join(' & ')}
                 {friendLikes.length > 2 && ` +${friendLikes.length - 2} more`}
-                {' '}{friendLikes.length === 1 ? 'has' : 'have'} this liked
+                {' '}have this in their roll
               </span>
             </div>
           )}
@@ -149,16 +150,11 @@ export default async function WatchDetailPage({ params }: PageProps) {
               href={watch.sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 bg-ink text-cream text-[12px] font-medium tracking-[0.06em] uppercase px-5 py-3 rounded text-center hover:bg-ink-2 transition-colors min-w-[180px]"
+              className="flex-1 bg-gold text-black text-[11px] font-bold tracking-[0.1em] uppercase px-5 py-3 rounded text-center hover:bg-gold-dark transition-colors min-w-[160px]"
             >
               View at {watch.source.name} ↗
             </a>
-            <button className="px-4 py-3 border border-[var(--border)] rounded text-[16px] hover:border-gold transition-colors">
-              {watch.isLiked ? '♥' : '♡'}
-            </button>
-            <button className="px-4 py-3 border border-[var(--border)] rounded text-[16px] hover:border-gold transition-colors">
-              ⊕
-            </button>
+            <WatchSaveButton watchId={watch.id} initialSaved={watch.isSaved ?? false} />
           </div>
 
           {/* Specs grid */}

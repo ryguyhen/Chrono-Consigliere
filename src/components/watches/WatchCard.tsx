@@ -7,7 +7,6 @@ import type { WatchWithRelations } from '@/types';
 
 interface WatchCardProps {
   watch: WatchWithRelations;
-  onLike?: (id: string, liked: boolean) => void;
   onSave?: (id: string, saved: boolean) => void;
 }
 
@@ -28,25 +27,9 @@ const CONDITION_LABEL: Record<string, string> = {
   FAIR: 'Fair',
 };
 
-export function WatchCard({ watch, onLike, onSave }: WatchCardProps) {
-  const [liked, setLiked] = useState(watch.isLiked ?? false);
+export function WatchCard({ watch, onSave }: WatchCardProps) {
   const [saved, setSaved] = useState(watch.isSaved ?? false);
-  const [likeCount, setLikeCount] = useState(watch.likeCount);
-
-  const primaryImage = watch.images?.[0];
-  const friendLikeCount = watch.friendLikes?.length ?? 0;
-
-  function handleLike(e: React.MouseEvent) {
-    e.preventDefault();
-    const next = !liked;
-    setLiked(next);
-    setLikeCount(prev => prev + (next ? 1 : -1));
-    onLike?.(watch.id, next);
-    fetch(`/api/likes/${watch.id}`, { method: next ? 'POST' : 'DELETE' }).catch(() => {
-      setLiked(!next);
-      setLikeCount(prev => prev + (next ? -1 : 1));
-    });
-  }
+  const friendCount = watch.friendLikes?.length ?? 0;
 
   function handleSave(e: React.MouseEvent) {
     e.preventDefault();
@@ -55,6 +38,8 @@ export function WatchCard({ watch, onLike, onSave }: WatchCardProps) {
     onSave?.(watch.id, next);
     fetch(`/api/saves/${watch.id}`, { method: next ? 'POST' : 'DELETE' }).catch(() => setSaved(!next));
   }
+
+  const primaryImage = watch.images?.[0];
 
   return (
     <Link
@@ -82,29 +67,18 @@ export function WatchCard({ watch, onLike, onSave }: WatchCardProps) {
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200" />
 
-        {/* Hover action buttons */}
-        <div className="absolute top-3 right-3 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-          <button
-            onClick={handleLike}
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] transition-all
-              ${liked
-                ? 'bg-red-500 text-white shadow-sm'
-                : 'bg-black/70 text-white/60 hover:text-red-400 shadow-sm'}`}
-            title={liked ? 'Unlike' : 'Like'}
-          >
-            {liked ? '♥' : '♡'}
-          </button>
-          <button
-            onClick={handleSave}
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] transition-all
-              ${saved
-                ? 'bg-gold text-black shadow-sm font-bold'
-                : 'bg-black/70 text-white/60 hover:text-gold shadow-sm'}`}
-            title={saved ? 'Remove from roll' : 'Add to roll'}
-          >
-            {saved ? '◈' : '◇'}
-          </button>
-        </div>
+        {/* Save button — revealed on hover */}
+        <button
+          onClick={handleSave}
+          className={`absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-150
+            px-3 py-1.5 rounded text-[10px] font-bold tracking-[0.08em] uppercase
+            ${saved
+              ? 'bg-gold text-black'
+              : 'bg-black/70 text-white hover:bg-gold hover:text-black'}`}
+          title={saved ? 'Remove from roll' : 'Add to roll'}
+        >
+          {saved ? 'In roll' : '+ Roll'}
+        </button>
 
         {/* Condition badge */}
         {watch.condition && watch.condition !== 'GOOD' && watch.condition !== 'VERY_GOOD' && (
@@ -127,13 +101,11 @@ export function WatchCard({ watch, onLike, onSave }: WatchCardProps) {
           <div className="text-[15px] font-normal text-ink tracking-[-0.01em]">
             {watch.sourcePrice ?? formatPrice(watch.price, watch.currency)}
           </div>
-          {friendLikeCount > 0 ? (
+          {friendCount > 0 && (
             <span className="text-[10px] text-gold font-mono">
-              {friendLikeCount === 1 ? 'In your circle' : `${friendLikeCount} in circle`}
+              {friendCount === 1 ? 'In your circle' : `${friendCount} in circle`}
             </span>
-          ) : likeCount > 0 ? (
-            <span className="font-mono text-[9px] text-muted">{likeCount}</span>
-          ) : null}
+          )}
         </div>
       </div>
     </Link>
