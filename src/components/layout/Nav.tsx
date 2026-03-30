@@ -23,8 +23,8 @@ export function Nav({ session }: NavProps) {
   return (
     <nav className="sticky top-0 z-50 h-[52px] bg-ink border-b border-white/[0.06] flex items-center px-6 gap-10">
       {/* Logo */}
-      <Link href="/" className="font-serif text-[1.15rem] font-light text-cream/90 tracking-wide whitespace-nowrap flex-shrink-0">
-        Chrono <em className="italic text-gold" style={{ fontStyle: 'italic' }}>Consigliere</em>
+      <Link href="/" className="text-[14px] font-normal tracking-[0.02em] text-cream/90 whitespace-nowrap flex-shrink-0">
+        Chrono <span className="text-gold">Consigliere</span>
       </Link>
 
       {/* Links */}

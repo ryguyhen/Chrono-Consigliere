@@ -31,8 +31,8 @@ export default function LoginPage() {
     <div className="min-h-[calc(100vh-52px)] flex items-center justify-center bg-parchment p-6">
       <div className="bg-surface border border-[var(--border)] rounded-xl p-10 w-full max-w-[380px]">
         <div className="text-center mb-7">
-          <div className="font-serif text-[1.6rem] font-light mb-1">
-            Chrono <span className="italic text-gold">Consigliere</span>
+          <div className="text-[18px] font-normal tracking-[0.01em] mb-1">
+            Chrono <span className="text-gold">Consigliere</span>
           </div>
           <p className="font-mono text-[9px] tracking-[0.18em] text-muted uppercase">
             See what your friends are into.

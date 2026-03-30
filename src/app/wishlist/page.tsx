@@ -49,7 +49,7 @@ export default async function WishlistPage({
       {/* Header */}
       <div className="bg-ink text-cream px-6 py-8">
         <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-gold/70 mb-2">Your roll</div>
-        <h1 className="font-serif text-[1.8rem] font-light mb-1">
+        <h1 className="text-[1.7rem] font-light tracking-[-0.02em] mb-1">
           {activeCollection ? activeCollection.name : 'Everything saved'}
         </h1>
         <div className="font-mono text-[11px] text-cream/30">
@@ -100,8 +100,8 @@ export default async function WishlistPage({
           </div>
         ) : (
           <div className="text-center py-24 text-muted">
-            <div className="font-serif text-3xl mb-5 opacity-15">◇</div>
-            <div className="font-serif text-xl font-light mb-2 text-ink">
+            <div className="text-3xl mb-5 opacity-15">◇</div>
+            <div className="text-[1.1rem] font-normal mb-2 text-ink">
               {activeCollection ? `${activeCollection.name} is empty` : 'Your roll is empty'}
             </div>
             <p className="text-[13px] text-muted mb-5">

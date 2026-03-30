@@ -26,9 +26,9 @@ export default async function LandingPage() {
       {/* HERO */}
       <section className="bg-ink text-cream px-8 py-28 relative overflow-hidden">
         <div className="relative z-10 max-w-[600px] mx-auto text-center">
-          <h1 className="font-serif text-[clamp(3rem,7vw,5.5rem)] font-light leading-[1.02] mb-8 text-cream">
+          <h1 className="text-[clamp(2.8rem,7vw,5rem)] font-light leading-[1.05] mb-8 text-cream tracking-[-0.02em]">
             Watch what your<br />
-            <em className="italic text-gold">friends are into.</em>
+            <span className="text-gold">friends are into.</span>
           </h1>
           <p className="text-[14px] text-cream/50 max-w-[400px] mx-auto mb-12 leading-relaxed font-light">
             Live inventory from the world's best dealers. See what your circle is saving,
@@ -90,7 +90,7 @@ export default async function LandingPage() {
           <div className="flex justify-between items-end mb-8">
             <div>
               <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-muted mb-2">Getting around</div>
-              <h2 className="font-serif text-[1.75rem] font-light">What your circle's into</h2>
+              <h2 className="text-[1.6rem] font-normal tracking-[-0.02em]">What your circle's into</h2>
             </div>
             <Link href="/browse?sort=most-liked" className="font-mono text-[10px] tracking-[0.1em] uppercase text-muted hover:text-gold transition-colors">
               All watches →
@@ -117,7 +117,7 @@ export default async function LandingPage() {
           <div className="flex justify-between items-end mb-8">
             <div>
               <div className="font-mono text-[9px] tracking-[0.18em] uppercase text-muted mb-2">Just dropped</div>
-              <h2 className="font-serif text-[1.75rem] font-light">New in</h2>
+              <h2 className="text-[1.6rem] font-normal tracking-[-0.02em]">New in</h2>
             </div>
             <Link href="/browse?sort=newest" className="font-mono text-[10px] tracking-[0.1em] uppercase text-muted hover:text-gold transition-colors">
               All watches →

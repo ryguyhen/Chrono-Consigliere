@@ -81,7 +81,7 @@ export default function PeoplePage() {
 
   return (
     <div className="max-w-[640px] mx-auto px-6 py-8">
-      <h1 className="font-serif text-[1.6rem] font-light mb-1">People</h1>
+      <h1 className="text-[1.5rem] font-normal tracking-[-0.02em] mb-1">People</h1>
       <p className="text-[13px] text-muted mb-6">Find people to follow. See what they're saving.</p>
 
       {/* Search */}

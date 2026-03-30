@@ -93,12 +93,12 @@ export default async function FeedPage() {
 
         {/* MAIN FEED */}
         <div>
-          <h1 className="font-serif text-[1.5rem] font-light mb-8">Your circle</h1>
+          <h1 className="text-[1.4rem] font-normal tracking-[-0.02em] mb-8">Your circle</h1>
 
           {feedEvents.length === 0 ? (
             <div className="text-center py-24 text-muted">
-              <div className="font-serif text-3xl mb-5 opacity-15">◈</div>
-              <div className="font-serif text-xl font-light mb-2 text-ink">Nothing yet</div>
+              <div className="text-3xl mb-5 opacity-15">◈</div>
+              <div className="text-[1.1rem] font-normal mb-2 text-ink">Nothing yet</div>
               <p className="text-[13px] text-muted mb-6">Follow people to see what they're saving.</p>
               <Link href="/people" className="font-mono text-[10px] tracking-[0.1em] uppercase text-gold hover:text-gold-dark">
                 Find people →
@@ -158,7 +158,7 @@ export default async function FeedPage() {
                           </div>
                           <div className="min-w-0 flex flex-col justify-center">
                             <div className="font-mono text-[9px] tracking-[0.12em] uppercase text-gold/80 mb-0.5">{event.listing.brand}</div>
-                            <div className="font-serif text-[15px] text-ink truncate group-hover:text-gold transition-colors">{event.listing.model || event.listing.sourceTitle}</div>
+                            <div className="text-[14px] font-normal text-ink truncate group-hover:text-gold transition-colors">{event.listing.model || event.listing.sourceTitle}</div>
                             <div className="text-[11px] text-muted mt-0.5">{event.listing.sourcePrice}</div>
                           </div>
                         </Link>

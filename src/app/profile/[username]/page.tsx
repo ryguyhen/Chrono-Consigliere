@@ -96,7 +96,7 @@ export default async function ProfilePage({ params }: PageProps) {
             </div>
 
             <div className="flex-1 min-w-0">
-              <h1 className="font-serif text-[1.8rem] font-light">{displayName}</h1>
+              <h1 className="text-[1.7rem] font-light tracking-[-0.02em]">{displayName}</h1>
               <div className="font-mono text-[12px] text-cream/40 mb-2">@{profile.username}</div>
               {profile.bio && (
                 <p className="text-[13px] text-cream/60 max-w-[420px] leading-relaxed mb-3">{profile.bio}</p>
@@ -111,7 +111,7 @@ export default async function ProfilePage({ params }: PageProps) {
                   [profile.user._count.followers, 'Followers'],
                 ].map(([n, l]) => (
                   <div key={l as string}>
-                    <div className="font-serif text-[1.2rem] font-light">{n}</div>
+                    <div className="text-[1.15rem] font-normal">{n}</div>
                     <div className="text-[10px] tracking-[0.08em] uppercase text-cream/40">{l}</div>
                   </div>
                 ))}
@@ -215,7 +215,7 @@ export default async function ProfilePage({ params }: PageProps) {
                     className="aspect-[4/3] rounded-lg p-5 flex flex-col justify-end cursor-pointer hover:opacity-90 transition-opacity"
                     style={{ background: bg }}
                   >
-                    <div className="font-serif text-[1.1rem] text-cream/90 mb-1">{col.name}</div>
+                    <div className="text-[1rem] font-normal text-cream/90 mb-1 tracking-[-0.01em]">{col.name}</div>
                     <div className="text-[11px] text-cream/40">{col._count.items} watches</div>
                   </div>
                 );

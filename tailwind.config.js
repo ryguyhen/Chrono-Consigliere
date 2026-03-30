@@ -4,8 +4,10 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        serif: ['var(--font-cormorant)', 'Georgia', 'serif'],
-        sans: ['var(--font-outfit)', 'system-ui', 'sans-serif'],
+        // Both serif and sans resolve to Helvetica — fully sans-serif system
+        sans: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+        serif: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+        // DM Mono kept for metadata labels, timestamps, counts
         mono: ['var(--font-dm-mono)', 'monospace'],
       },
       colors: {

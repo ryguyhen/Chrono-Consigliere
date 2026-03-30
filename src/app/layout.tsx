@@ -1,24 +1,11 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
-import { Cormorant_Garamond, Outfit, DM_Mono } from 'next/font/google';
+import { DM_Mono } from 'next/font/google';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
 import { Nav } from '@/components/layout/Nav';
 import { Providers } from '@/components/layout/Providers';
 import './globals.css';
-
-const cormorant = Cormorant_Garamond({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-  style: ['normal', 'italic'],
-  variable: '--font-cormorant',
-});
-
-const outfit = Outfit({
-  subsets: ['latin'],
-  weight: ['300', '400', '500'],
-  variable: '--font-outfit',
-});
 
 const dmMono = DM_Mono({
   subsets: ['latin'],
@@ -27,11 +14,11 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Chrono Consigliere — Social Watch Discovery',
-  description: 'Discover, curate, and share the watches you love. A social watch discovery engine for people with taste.',
+  title: 'Chrono Consigliere — Watch what your friends are into',
+  description: 'Live inventory from the world\'s best dealers. See what your circle is saving and what\'s worth a look.',
   openGraph: {
     title: 'Chrono Consigliere',
-    description: 'A social watch discovery engine for people with taste.',
+    description: 'See what your friends are into.',
     type: 'website',
   },
 };
@@ -40,7 +27,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const session = await getServerSession(authOptions);
 
   return (
-    <html lang="en" className={`${cormorant.variable} ${outfit.variable} ${dmMono.variable}`}>
+    <html lang="en" className={dmMono.variable}>
       <body className="bg-cream text-ink font-sans antialiased">
         <Providers>
           <Nav session={session} />

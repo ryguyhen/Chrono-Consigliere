@@ -4,8 +4,8 @@ import Link from 'next/link';
 export default function NotFound() {
   return (
     <div className="min-h-[calc(100vh-52px)] flex flex-col items-center justify-center text-center px-6">
-      <div className="font-serif text-[6rem] font-light text-ink/8 leading-none mb-6">404</div>
-      <h1 className="font-serif text-[1.8rem] font-light mb-3">Not found</h1>
+      <div className="text-[6rem] font-light text-ink/8 leading-none mb-6 tracking-[-0.04em]">404</div>
+      <h1 className="text-[1.6rem] font-normal tracking-[-0.02em] mb-3">Not found</h1>
       <p className="text-[14px] text-muted mb-8 max-w-[340px]">
         This may have sold, or the link is broken.
       </p>

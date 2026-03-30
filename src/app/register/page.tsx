@@ -37,8 +37,8 @@ export default function RegisterPage() {
     <div className="min-h-[calc(100vh-52px)] flex items-center justify-center bg-parchment p-6">
       <div className="bg-surface border border-[var(--border)] rounded-xl p-10 w-full max-w-[380px]">
         <div className="text-center mb-7">
-          <div className="font-serif text-[1.6rem] font-light mb-1">
-            Chrono <em className="italic text-gold" style={{ fontStyle: 'italic' }}>Consigliere</em>
+          <div className="text-[18px] font-normal tracking-[0.01em] mb-1">
+            Chrono <span className="text-gold">Consigliere</span>
           </div>
           <p className="font-mono text-[9px] tracking-[0.18em] text-muted uppercase">
             Start your roll
@@ -47,8 +47,8 @@ export default function RegisterPage() {
 
         {done ? (
           <div className="text-center">
-            <div className="font-serif text-[2rem] mb-3 text-gold">◈</div>
-            <div className="font-serif text-[1.2rem] font-light mb-2">You're in.</div>
+            <div className="text-[1.5rem] mb-3 text-gold">◈</div>
+            <div className="text-[1.1rem] font-normal mb-2">You're in.</div>
             <p className="text-[13px] text-muted mb-6 leading-relaxed">
               Account created. Sign in with your email — no password needed yet.
             </p>

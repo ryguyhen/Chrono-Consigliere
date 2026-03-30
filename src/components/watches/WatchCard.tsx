@@ -117,12 +117,12 @@ export function WatchCard({ watch, onLike, onSave }: WatchCardProps) {
         <div className="text-[9px] font-medium tracking-[0.14em] uppercase text-muted mb-1">
           {watch.brand}
         </div>
-        <div className="font-serif text-[15px] font-normal text-ink leading-snug mb-2">
+        <div className="text-[14px] font-normal text-ink leading-snug mb-2 tracking-[-0.01em]">
           {watch.model || watch.sourceTitle}
         </div>
 
         <div className="flex items-baseline justify-between">
-          <div className="font-serif text-[17px] font-light text-ink">
+          <div className="text-[16px] font-light text-ink tracking-[-0.01em]">
             {watch.sourcePrice ?? formatPrice(watch.price, watch.currency)}
           </div>
           {friendLikeCount > 0 ? (
