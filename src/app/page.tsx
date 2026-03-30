@@ -25,30 +25,28 @@ export default async function LandingPage() {
     <div>
       {/* HERO */}
       <section className="bg-black text-white px-8 py-28 border-b border-white/[0.06]">
-        <div className="max-w-[600px] mx-auto text-center">
-          <h1 className="text-[clamp(2.8rem,7vw,5rem)] font-semibold leading-[1.02] mb-8 tracking-[-0.03em]">
-            Watch what your<br />
-            <span className="text-gold">friends are into.</span>
-          </h1>
-          <p className="text-[14px] text-white/50 max-w-[400px] mx-auto mb-12 leading-relaxed font-normal">
-            Live inventory from the world's best dealers. See what your circle is saving,
-            what's heating up, and what's worth a look.
+        <div className="max-w-[560px] mx-auto text-center">
+          <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-gold mb-7">
+            Start your roll
           </p>
-          <div className="flex gap-4 justify-center">
-            <Link
-              href="/browse"
-              className="bg-gold text-black text-[11px] font-bold tracking-[0.1em] uppercase px-6 py-3 rounded hover:bg-gold-dark transition-colors"
-            >
-              Browse watches
-            </Link>
+          <h1 className="text-[clamp(2.2rem,5.5vw,3.8rem)] font-semibold leading-[1.08] mb-7 tracking-[-0.03em]">
+            Build your watch box, follow your friends, and keep up with what's good.
+          </h1>
+          <div className="flex gap-3 justify-center mt-10">
             {!session && (
               <Link
                 href="/register"
-                className="border border-white/15 text-white/60 text-[11px] font-medium tracking-[0.1em] uppercase px-6 py-3 rounded hover:border-gold/60 hover:text-gold transition-colors"
+                className="bg-gold text-black text-[11px] font-bold tracking-[0.1em] uppercase px-6 py-3 rounded hover:bg-gold-dark transition-colors"
               >
                 Start your roll
               </Link>
             )}
+            <Link
+              href="/browse"
+              className="border border-white/15 text-white/60 text-[11px] font-medium tracking-[0.1em] uppercase px-6 py-3 rounded hover:border-gold/60 hover:text-gold transition-colors"
+            >
+              Browse watches
+            </Link>
           </div>
 
           {/* Stats */}
