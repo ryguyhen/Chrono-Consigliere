@@ -12,9 +12,8 @@ interface NavProps {
 const NAV_LINKS = [
   { href: '/', label: 'Discover' },
   { href: '/browse', label: 'Browse' },
-  { href: '/feed', label: 'Friends' },
+  { href: '/roll', label: 'Roll' },
   { href: '/people', label: 'People' },
-  { href: '/wishlist', label: 'Roll' },
 ];
 
 export function Nav({ session }: NavProps) {
@@ -34,7 +33,7 @@ export function Nav({ session }: NavProps) {
             key={link.href}
             href={link.href}
             className={`text-[11px] font-medium tracking-[0.1em] uppercase transition-colors
-              ${pathname === link.href
+              ${pathname === link.href || (link.href === '/roll' && pathname.startsWith('/roll'))
                 ? 'text-white'
                 : 'text-white/35 hover:text-white/70'
               }`}
