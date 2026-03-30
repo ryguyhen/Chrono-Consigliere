@@ -1,2 +1,3 @@
 [build]
-buildCommand = "npm install && npx playwright install chromium --with-deps && npm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
