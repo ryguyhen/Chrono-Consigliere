@@ -31,7 +31,7 @@ export class CraftAndTailoredAdapter extends ShopifyBaseAdapter {
       sourceId: '',
       sourceName: 'Craft & Tailored',
       baseUrl: 'https://www.craftandtailored.com',
-      watchCollectionHandle: 'watches',
+      watchCollectionHandle: undefined,
       // Exclude straps, books, lifestyle items common on this site
       nonWatchTags: ['strap', 'nato', 'leather', 'book', 'lifestyle', 'merch', 'apparel', 'accessories', 'zodiac-strap'],
       excludeProductTypes: ['strap', 'book', 'accessory', 'lifestyle', 'apparel'],

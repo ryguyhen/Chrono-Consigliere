@@ -57,6 +57,7 @@ export async function runScrapeJob(sourceId: string): Promise<void> {
         listingsFound: result.listings.length,
         listingsNew: newCount,
         listingsRemoved: removed.count,
+        errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join(' | ') : null,
       },
     });
 
