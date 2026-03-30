@@ -215,7 +215,7 @@ export default async function FeedPage() {
                   >
                     <span className="text-[10px] font-mono text-muted w-4">{i + 1}</span>
                     <span className="flex-1 text-[13px] text-ink">{b.brand}</span>
-                    <span className="text-[10px] text-muted">{b._count} friends</span>
+                    <span className="text-[10px] text-muted">{b._count.brand} friends</span>
                   </Link>
                 ))}
               </div>
