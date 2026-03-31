@@ -50,11 +50,26 @@ export abstract class WooCommerceBaseAdapter extends BaseAdapter {
       this.log('info', 'Store API unavailable, falling back to Playwright scrape');
     }
 
+    // Respect low-memory / no-Playwright mode
+    if (process.env.SCRAPER_NO_PLAYWRIGHT === 'true') {
+      const msg = `${this.config.sourceName}: Store API returned 0 and Playwright is disabled (SCRAPER_NO_PLAYWRIGHT=true) — skipping`;
+      this.log('warn', msg);
+      return { listings: [], totalFound: 0, errors: [msg] };
+    }
+
     // Fallback: Playwright HTML scrape
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    });
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
       locale: 'en-US',
+      // Disable all persistence and heavy features to minimise memory on Railway
+      recordVideo: undefined,
+      recordHar: undefined,
+      acceptDownloads: false,
+      javaScriptEnabled: true,
     });
 
     try {

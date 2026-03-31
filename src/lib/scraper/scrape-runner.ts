@@ -7,7 +7,17 @@ import { prisma } from '@/lib/db';
 import { getAdapter } from './adapter-registry';
 import type { ScrapedListing } from './base-adapter';
 
-export async function runScrapeJob(sourceId: string): Promise<void> {
+export interface ScrapeJobSummary {
+  sourceId: string;
+  status: 'COMPLETED' | 'FAILED';
+  listingsFound: number;
+  listingsNew: number;
+  listingsRemoved: number;
+  errors: string[];
+  diagnostics?: Record<string, any>;
+}
+
+export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> {
   // Create job record
   const job = await prisma.scrapeJob.create({
     data: { sourceId, status: 'RUNNING', startedAt: new Date() },
@@ -20,7 +30,7 @@ export async function runScrapeJob(sourceId: string): Promise<void> {
   const adapter = getAdapter(source.adapterName);
   if (!adapter) {
     await failJob(job.id, `No adapter registered for: ${source.adapterName}`);
-    return;
+    return { sourceId, status: 'FAILED', listingsFound: 0, listingsNew: 0, listingsRemoved: 0, errors: [`No adapter registered for: ${source.adapterName}`] };
   }
 
   try {
@@ -48,6 +58,14 @@ export async function runScrapeJob(sourceId: string): Promise<void> {
       data: { isAvailable: false },
     });
 
+    // Build error message — include diagnostics summary for visibility
+    const diagSummary = result.diagnostics
+      ? ` [endpoint:${result.diagnostics.endpointUsed ?? '?'} raw:${result.diagnostics.rawTotal ?? '?'} filtered:${result.diagnostics.nonWatchFiltered ?? 0}+${result.diagnostics.unavailableFiltered ?? 0}]`
+      : '';
+    const errorMessage = result.errors.length > 0
+      ? result.errors.slice(0, 3).join(' | ') + diagSummary
+      : (diagSummary || null);
+
     // Update job as complete
     await prisma.scrapeJob.update({
       where: { id: job.id },
@@ -57,7 +75,7 @@ export async function runScrapeJob(sourceId: string): Promise<void> {
         listingsFound: result.listings.length,
         listingsNew: newCount,
         listingsRemoved: removed.count,
-        errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join(' | ') : null,
+        errorMessage,
       },
     });
 
@@ -67,8 +85,19 @@ export async function runScrapeJob(sourceId: string): Promise<void> {
       data: { lastSyncAt: new Date() },
     });
 
+    return {
+      sourceId,
+      status: 'COMPLETED',
+      listingsFound: result.listings.length,
+      listingsNew: newCount,
+      listingsRemoved: removed.count,
+      errors: result.errors,
+      diagnostics: result.diagnostics,
+    };
+
   } catch (err: any) {
     await failJob(job.id, err.message);
+    return { sourceId, status: 'FAILED', listingsFound: 0, listingsNew: 0, listingsRemoved: 0, errors: [err.message] };
   }
 }
 

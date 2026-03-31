@@ -1,8 +1,14 @@
 #!/usr/bin/env ts-node
 // scripts/run-all-scrapers.ts
 // Runs all active dealer scrapers in sequence with polite intervals.
-// Usage: npx ts-node scripts/run-all-scrapers.ts
-//        npx ts-node scripts/run-all-scrapers.ts --parallel   (concurrent — use carefully)
+//
+// Usage:
+//   npm run scrape:all
+//   npm run scrape:all -- --no-playwright          skip WooCommerce/Playwright sources
+//   npm run scrape:all -- --max-pages 3            cap pagination per source (debug/low-memory)
+//   npm run scrape:all -- --source=bulang-and-sons run only this slug
+//   npm run scrape:all -- --parallel               concurrent (use carefully — OOM risk)
+//   npm run scrape:all -- --dry-run                list what would run, don't execute
 
 import { PrismaClient } from '@prisma/client';
 import { runScrapeJob } from '../src/lib/scraper/scrape-runner';
@@ -12,7 +18,14 @@ const prisma = new PrismaClient();
 
 const PARALLEL = process.argv.includes('--parallel');
 const DRY_RUN = process.argv.includes('--dry-run');
+const NO_PLAYWRIGHT = process.argv.includes('--no-playwright');
+const MAX_PAGES = process.argv.find(a => a.startsWith('--max-pages='))?.split('=')[1]
+  ?? (process.argv.includes('--max-pages') ? process.argv[process.argv.indexOf('--max-pages') + 1] : undefined);
 const SOURCE_FILTER = process.argv.find(a => a.startsWith('--source='))?.split('=')[1];
+
+// Apply env overrides from CLI flags before any imports use them
+if (NO_PLAYWRIGHT) process.env.SCRAPER_NO_PLAYWRIGHT = 'true';
+if (MAX_PAGES) process.env.SCRAPER_MAX_PAGES = MAX_PAGES;
 
 async function main() {
   console.log('\n╔══════════════════════════════════════════╗');
@@ -33,6 +46,8 @@ async function main() {
 
   console.log(`Found ${sources.length} active sources`);
   console.log(`Runnable: ${runnable.length} | Skipped (no adapter): ${skipped.length}`);
+  if (NO_PLAYWRIGHT) console.log(`Playwright: DISABLED (WooCommerce sources will return 0 unless Store API works)`);
+  if (MAX_PAGES) console.log(`Max pages: ${MAX_PAGES} per source`);
   if (skipped.length) {
     console.log(`  Skipped: ${skipped.map(s => s.name).join(', ')}`);
   }
@@ -42,7 +57,12 @@ async function main() {
     return;
   }
 
-  console.log(`\nMode: ${PARALLEL ? 'parallel' : 'sequential'}\n`);
+  if (PARALLEL) {
+    console.warn('\nWARNING: --parallel launches all sources at once. This can exhaust memory on Railway.');
+    console.warn('Use sequential (default) for production runs.\n');
+  }
+
+  console.log(`\nMode: ${PARALLEL ? 'parallel (⚠ high memory)' : 'sequential'}\n`);
 
   const results: { name: string; status: 'ok' | 'error'; listings?: number; error?: string }[] = [];
 

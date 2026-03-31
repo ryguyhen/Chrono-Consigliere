@@ -25,7 +25,8 @@ interface ShopifyProduct {
   handle: string;
   body_html: string;
   product_type: string;
-  tags: string;
+  /** Shopify returns tags as string[] on /products.json and /collections/.../products.json */
+  tags: string | string[];
   published_at: string | null;
   variants: ShopifyVariant[];
   images: ShopifyImage[];
@@ -36,7 +37,8 @@ interface ShopifyVariant {
   title: string;
   price: string;
   available: boolean;
-  inventory_quantity: number;
+  /** May be absent (undefined) when inventory is not tracked */
+  inventory_quantity: number | null | undefined;
   inventory_management: string | null;
 }
 
@@ -74,11 +76,101 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
     this.shopifyConfig = config;
   }
 
+  /**
+   * Fetch a single URL, retrying only on 429 / 5xx (not 404/403).
+   * Returns null if the endpoint should be skipped (404/403/non-JSON).
+   */
+  private async fetchProductsPage(url: string): Promise<ShopifyProduct[] | null | 'skip'> {
+    const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+    const MAX_ATTEMPTS = 3;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+        },
+      });
+
+      // Non-retryable failures — signal caller to try fallback or abort
+      if (res.status === 404 || res.status === 403) {
+        this.log('warn', `${res.status} from ${url} — skipping endpoint`);
+        return 'skip';
+      }
+
+      if (RETRY_STATUSES.has(res.status)) {
+        if (attempt === MAX_ATTEMPTS) {
+          this.log('error', `HTTP ${res.status} after ${MAX_ATTEMPTS} attempts for ${url}`);
+          return null;
+        }
+        const backoff = attempt * 2000 + Math.random() * 1000;
+        this.log('warn', `HTTP ${res.status}, retrying in ${Math.round(backoff)}ms (attempt ${attempt}/${MAX_ATTEMPTS})`);
+        await this.delay(backoff);
+        continue;
+      }
+
+      if (!res.ok) {
+        this.log('error', `HTTP ${res.status} for ${url}`);
+        return null;
+      }
+
+      // Detect HTML bot-protection pages before attempting JSON.parse
+      const contentType = res.headers.get('content-type') ?? '';
+      if (contentType.includes('text/html')) {
+        this.log('warn', `HTML response (bot protection?) from ${url} — skipping endpoint`);
+        return 'skip';
+      }
+
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text) as { products: ShopifyProduct[] };
+        return json.products ?? [];
+      } catch {
+        // Check if it looks like HTML even without the content-type header
+        if (text.trimStart().startsWith('<')) {
+          this.log('warn', `HTML body (no JSON header) from ${url} — skipping endpoint`);
+          return 'skip';
+        }
+        this.log('error', `JSON parse failed for ${url}: ${text.slice(0, 120)}`);
+        return null;
+      }
+    }
+
+    return null;
+  }
+
   async scrape(): Promise<ScrapeResult> {
     const listings: ScrapedListing[] = [];
-    const errors: string[] = [];
-    let page = 1;
-    let hasMore = true;
+    let pagesScraped = 0;
+    let rawTotal = 0;
+    let unavailableFiltered = 0;
+
+    // Debug mode: set SCRAPER_DEBUG=true or SCRAPER_DEBUG_SOURCE=<AdapterClassName>
+    const debugAll = process.env.SCRAPER_DEBUG === 'true';
+    const debugSource = process.env.SCRAPER_DEBUG_SOURCE;
+    const debug = debugAll || (!!debugSource && this.constructor.name === debugSource);
+
+    // Optional pagination cap for low-memory / debug runs
+    const maxPages = process.env.SCRAPER_MAX_PAGES
+      ? parseInt(process.env.SCRAPER_MAX_PAGES)
+      : (this.config.maxPages ?? 50);
+
+    // Drop tracking: reason → [handle, …] (capped at 5 samples each)
+    const dropped: Record<string, string[]> = {};
+    const addDrop = (reason: string, handle: string) => {
+      if (!dropped[reason]) dropped[reason] = [];
+      if (dropped[reason].length < 5) dropped[reason].push(handle);
+    };
+
+    // Grouped errors: message → [handle, …]
+    const errorBuckets: Record<string, string[]> = {};
+    const addError = (handle: string, msg: string) => {
+      const key = msg.replace(/\b[a-f0-9-]{20,}\b/g, '<id>').slice(0, 80); // strip unique ids
+      if (!errorBuckets[key]) errorBuckets[key] = [];
+      if (errorBuckets[key].length < 5) errorBuckets[key].push(handle);
+    };
 
     const nonWatchTags = [
       ...DEFAULT_NON_WATCH_TAGS,
@@ -90,123 +182,193 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
       ...(this.shopifyConfig.excludeProductTypes ?? []),
     ].map(t => t.toLowerCase());
 
-    // Use collection-scoped endpoint if provided, otherwise all products
-    const baseEndpoint = this.shopifyConfig.watchCollectionHandle
+    // Build ordered list of endpoints to try — collection first (if configured), root fallback always
+    const collectionEndpoint = this.shopifyConfig.watchCollectionHandle
       ? `${this.shopifyConfig.baseUrl}/collections/${this.shopifyConfig.watchCollectionHandle}/products.json`
-      : `${this.shopifyConfig.baseUrl}/products.json`;
+      : null;
+    const rootEndpoint = `${this.shopifyConfig.baseUrl}/products.json`;
 
-    this.log('info', `Starting Shopify scrape via ${baseEndpoint}`);
+    let baseEndpoint = collectionEndpoint ?? rootEndpoint;
+    let endpointUsed = baseEndpoint;
+    this.log('info', `Starting Shopify scrape via ${baseEndpoint}${debug ? ' [DEBUG]' : ''}`);
 
-    while (hasMore) {
+    let page = 1;
+    let hasMore = true;
+    let firstPageProducts: ShopifyProduct[] | null = null;
+
+    while (hasMore && page <= maxPages) {
       const url = `${baseEndpoint}?limit=250&page=${page}`;
+      const result = await this.fetchProductsPage(url);
 
-      try {
-        const products = await this.withRetry(async () => {
-          const res = await fetch(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': 'application/json, text/plain, */*',
-              'Accept-Language': 'en-US,en;q=0.9',
-              'Accept-Encoding': 'gzip, deflate, br',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache',
-              'Sec-Fetch-Dest': 'empty',
-              'Sec-Fetch-Mode': 'cors',
-              'Sec-Fetch-Site': 'same-origin',
-            },
-          });
-          if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-          const text = await res.text();
-          let json: { products: ShopifyProduct[] };
-          try {
-            json = JSON.parse(text);
-          } catch {
-            throw new Error(`Non-JSON response (${text.slice(0, 100)})`);
-          }
-          return json.products;
-        });
-
-        if (!products || products.length === 0) {
-          this.log('info', `Page ${page} returned 0 products — stopping`);
-          hasMore = false;
-          break;
+      if (result === 'skip') {
+        if (baseEndpoint !== rootEndpoint) {
+          this.log('info', `Collection endpoint unavailable, falling back to ${rootEndpoint}`);
+          baseEndpoint = rootEndpoint;
+          endpointUsed = rootEndpoint;
+          page = 1;
+          continue;
         }
+        addError('(fetch)', `Both collection and root endpoints unavailable for ${this.shopifyConfig.baseUrl}`);
+        break;
+      }
 
-        for (const product of products) {
-          try {
-            // Filter out non-watch products
-            const tagsLower = (product.tags || '').toLowerCase();
-            const typeLower = (product.product_type || '').toLowerCase();
-
-            const isNonWatch =
-              nonWatchTypes.some(t => typeLower.includes(t)) ||
-              nonWatchTags.some(t => tagsLower.includes(t));
-
-            if (isNonWatch) continue;
-
-            // Only include products with at least one available variant
-            const availableVariants = product.variants.filter(
-              v => v.available || v.inventory_quantity === null || v.inventory_quantity > 0
-            );
-
-            // For watches that are individual unique pieces, "sold out" = unavailable
-            const isAvailable = availableVariants.length > 0;
-
-            const primaryVariant = product.variants[0];
-            const price = this.parsePrice(primaryVariant?.price ?? null);
-
-            const images = (product.images ?? []).map(img => ({
-              url: img.src,
-              isPrimary: img.position === 1,
-              width: img.width,
-              height: img.height,
-              altText: img.alt ?? undefined,
-            }));
-
-            const description = this.stripHtml(product.body_html);
-            const parsed = this.parseFromTitleAndDescription(product.title, description);
-
-            listings.push({
-              sourceUrl: `${this.shopifyConfig.baseUrl}/products/${product.handle}`,
-              sourceTitle: product.title,
-              sourcePrice: primaryVariant?.price ? `$${primaryVariant.price}` : null,
-              brand: parsed.brand ?? null,
-              model: parsed.model ?? null,
-              reference: parsed.reference ?? null,
-              year: parsed.year ?? null,
-              caseSizeMm: parsed.caseSizeMm ?? null,
-              caseMaterial: parsed.caseMaterial ?? null,
-              dialColor: parsed.dialColor ?? null,
-              movementType: parsed.movementType ?? null,
-              condition: parsed.condition ?? null,
-              style: null,
-              price,
-              currency: 'USD',
-              description,
-              images: images as any,
-              isAvailable,
-            });
-          } catch (err: any) {
-            errors.push(`Product ${product.handle}: ${err.message}`);
-          }
-        }
-
-        // Shopify pages: if we got fewer than 250, we're done
-        if (products.length < 250) {
-          hasMore = false;
-        } else {
-          page++;
-          await this.delay();
-        }
-      } catch (err: any) {
-        this.log('error', `Page ${page} failed: ${err.message}`);
-        errors.push(err.message);
+      if (result === null) {
+        addError('(fetch)', `Failed to fetch page ${page} from ${baseEndpoint}`);
         hasMore = false;
+        break;
+      }
+
+      const products = result;
+
+      if (products.length === 0) {
+        this.log('info', `Page ${page} returned 0 products — stopping`);
+        hasMore = false;
+        break;
+      }
+
+      pagesScraped++;
+      rawTotal += products.length;
+      this.log('info', `Page ${page}: ${products.length} raw products (running total: ${rawTotal})`);
+
+      // Debug: inspect first 3 products on page 1
+      if (debug && page === 1) {
+        firstPageProducts = products;
+        this.log('info', `--- First 3 raw products ---`);
+        products.slice(0, 3).forEach((p, i) => {
+          const tagsPreview = JSON.stringify(p.tags).slice(0, 120);
+          const avail = p.variants?.[0]?.available;
+          const invQty = p.variants?.[0]?.inventory_quantity;
+          this.log('info', `  [${i}] "${p.title.slice(0, 60)}" | type:"${p.product_type}" | tags:${tagsPreview} | available:${avail} inventory_quantity:${invQty}`);
+        });
+      }
+
+      for (const product of products) {
+        try {
+          // Normalize tags — Shopify /products.json returns tags as string[] not string
+          const tagsArr: string[] = Array.isArray(product.tags)
+            ? product.tags.map(t => t.toLowerCase())
+            : (product.tags || '').toLowerCase().split(/,\s*/).filter(Boolean);
+
+          const typeLower = (product.product_type || '').toLowerCase();
+
+          // Check product_type filter
+          const matchedType = nonWatchTypes.find(t => typeLower.includes(t));
+          if (matchedType) {
+            addDrop(`type:"${product.product_type || '(empty)'}"`  , product.handle);
+            continue;
+          }
+
+          // Check tag filter — find the first matching non-watch tag for the drop reason
+          const matchedTag = nonWatchTags.find(nwt => tagsArr.some(tag => tag.includes(nwt)));
+          if (matchedTag) {
+            const culpritTag = tagsArr.find(tag => tag.includes(matchedTag)) ?? matchedTag;
+            addDrop(`tag:"${culpritTag}"`, product.handle);
+            continue;
+          }
+
+          const availableVariants = product.variants.filter(
+            v => v.available || v.inventory_quantity == null || v.inventory_quantity > 0
+          );
+          const isAvailable = availableVariants.length > 0;
+          if (!isAvailable) {
+            unavailableFiltered++;
+            // Don't drop — still persist with isAvailable=false so stale-marking works correctly
+          }
+
+          const primaryVariant = product.variants[0];
+          const price = this.parsePrice(primaryVariant?.price ?? null);
+
+          const images = (product.images ?? []).map(img => ({
+            url: img.src,
+            isPrimary: img.position === 1,
+            width: img.width,
+            height: img.height,
+            altText: img.alt ?? undefined,
+          }));
+
+          const description = this.stripHtml(product.body_html);
+          const parsed = this.parseFromTitleAndDescription(product.title, description);
+
+          listings.push({
+            sourceUrl: `${this.shopifyConfig.baseUrl}/products/${product.handle}`,
+            sourceTitle: product.title,
+            sourcePrice: primaryVariant?.price ? `$${primaryVariant.price}` : null,
+            brand: parsed.brand ?? null,
+            model: parsed.model ?? null,
+            reference: parsed.reference ?? null,
+            year: parsed.year ?? null,
+            caseSizeMm: parsed.caseSizeMm ?? null,
+            caseMaterial: parsed.caseMaterial ?? null,
+            dialColor: parsed.dialColor ?? null,
+            movementType: parsed.movementType ?? null,
+            condition: parsed.condition ?? null,
+            style: null,
+            price,
+            currency: 'USD',
+            description,
+            images: images as any,
+            isAvailable,
+          });
+        } catch (err: any) {
+          addError(product.handle, err.message);
+        }
+      }
+
+      if (products.length < 250) {
+        hasMore = false;
+      } else {
+        page++;
+        await this.delay();
       }
     }
 
-    this.log('info', `Done. ${listings.length} watch listings across ${page} page(s), ${errors.length} errors`);
-    return { listings, totalFound: listings.length, errors };
+    // Flatten grouped errors back to string array for ScrapeResult
+    const errors: string[] = Object.entries(errorBuckets).map(([msg, handles]) =>
+      `[${handles.length} products] ${msg} (e.g. ${handles.slice(0, 2).join(', ')})`
+    );
+
+    // Drop summary counts
+    const totalDropped = Object.values(dropped).reduce((sum, arr) => sum + arr.length, 0);
+    const nonWatchFiltered = totalDropped; // kept for diagnostics compat
+
+    // Always log a compact funnel summary
+    this.log('info', `Funnel: ${rawTotal} raw → ${totalDropped} dropped (${Object.keys(dropped).map(k => `${k}:${dropped[k].length}`).join(', ') || 'none'}) → ${listings.length} listings (${unavailableFiltered} unavailable) → ${errors.length} errors`);
+
+    // Debug: full funnel breakdown
+    if (debug) {
+      this.log('info', `--- Funnel breakdown ---`);
+      this.log('info', `  raw fetched:          ${rawTotal}`);
+      this.log('info', `  dropped (type/tag):   ${totalDropped}`);
+      for (const [reason, handles] of Object.entries(dropped)) {
+        this.log('info', `    ${reason}: ${handles.length} (e.g. ${handles.join(', ')})`);
+      }
+      this.log('info', `  reached normalization: ${rawTotal - totalDropped}`);
+      this.log('info', `  isAvailable=false:     ${unavailableFiltered}`);
+      this.log('info', `  isAvailable=true:      ${listings.filter(l => l.isAvailable).length}`);
+      this.log('info', `  normalization errors:  ${Object.values(errorBuckets).reduce((s, a) => s + a.length, 0)}`);
+      if (Object.keys(errorBuckets).length > 0) {
+        this.log('info', `  --- Error groups ---`);
+        for (const [msg, handles] of Object.entries(errorBuckets)) {
+          this.log('info', `    "${msg}" — ${handles.length} products (e.g. ${handles.join(', ')})`);
+        }
+      }
+      this.log('info', `  total to persist:      ${listings.length}`);
+    }
+
+    return {
+      listings,
+      totalFound: listings.length,
+      errors,
+      diagnostics: {
+        endpointUsed,
+        strategy: 'shopify-json',
+        pagesScraped,
+        rawTotal,
+        nonWatchFiltered,
+        unavailableFiltered,
+        dropReasons: Object.fromEntries(Object.entries(dropped).map(([k, v]) => [k, v.length])),
+      },
+    };
   }
 
   protected stripHtml(html: string | null): string | null {

@@ -20,17 +20,36 @@ export async function POST(req: Request) {
   if (!isAdmin(session?.user?.email))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const { sourceId, all } = await req.json().catch(() => ({}));
+  const { sourceId, all, debug, noPlaywright, maxPages } = await req.json().catch(() => ({}));
+
+  // Apply request-level overrides so adapters pick them up via process.env
+  if (noPlaywright) process.env.SCRAPER_NO_PLAYWRIGHT = 'true';
+  if (maxPages) process.env.SCRAPER_MAX_PAGES = String(maxPages);
+  if (debug) process.env.SCRAPER_DEBUG = 'true';
 
   if (all) {
     const sources = await prisma.dealerSource.findMany({ where: { isActive: true } });
-    // Fire all in background — don't await (too slow for HTTP response)
-    Promise.all(sources.map(s => runScrapeJob(s.id))).catch(console.error);
+    // Run sequentially in background to avoid spawning multiple Playwright instances simultaneously
+    ;(async () => {
+      for (const source of sources) {
+        try {
+          await runScrapeJob(source.id);
+        } catch (err) {
+          console.error(`Scrape job failed for ${source.id}:`, err);
+        }
+      }
+    })();
     return NextResponse.json({ queued: sources.length, sourceIds: sources.map(s => s.id) });
   }
 
   if (!sourceId)
     return NextResponse.json({ error: 'sourceId or all:true required' }, { status: 400 });
+
+  if (debug) {
+    // Await and return full result for debugging
+    const result = await runScrapeJob(sourceId);
+    return NextResponse.json({ sourceId, result });
+  }
 
   // Fire in background
   runScrapeJob(sourceId).catch(console.error);

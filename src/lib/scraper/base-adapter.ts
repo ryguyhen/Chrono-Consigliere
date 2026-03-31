@@ -31,6 +31,16 @@ export interface ScrapeResult {
   listings: ScrapedListing[];
   totalFound: number;
   errors: string[];
+  /** Optional per-adapter diagnostics for debugging */
+  diagnostics?: {
+    endpointUsed?: string;
+    strategy?: string;
+    pagesScraped?: number;
+    rawTotal?: number;
+    nonWatchFiltered?: number;
+    unavailableFiltered?: number;
+    [key: string]: any;
+  };
 }
 
 export interface AdapterConfig {
