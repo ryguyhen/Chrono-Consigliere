@@ -266,10 +266,15 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
             continue;
           }
 
-          const availableVariants = product.variants.filter(
-            v => v.available || v.inventory_quantity == null || v.inventory_quantity > 0
+          // Trust Shopify's `available` boolean as the primary source of truth.
+          // Only use inventory_quantity as a positive override when it's explicitly
+          // set (not null/undefined) and > 0 — handles stores with misconfigured
+          // inventory management where available=false but stock exists.
+          // Do NOT treat absent inventory_quantity as "available" — that overrides
+          // sold-out items on stores that don't track inventory (e.g. C4C Japan).
+          const isAvailable = product.variants.some(
+            v => v.available === true || (v.inventory_quantity != null && v.inventory_quantity > 0)
           );
-          const isAvailable = availableVariants.length > 0;
           if (!isAvailable) {
             unavailableFiltered++;
             // Don't drop — still persist with isAvailable=false so stale-marking works correctly
