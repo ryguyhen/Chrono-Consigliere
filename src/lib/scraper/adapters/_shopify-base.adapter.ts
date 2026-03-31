@@ -16,6 +16,21 @@ export interface ShopifyAdapterConfig {
   nonWatchTags?: string[];
   /** Product types to exclude */
   excludeProductTypes?: string[];
+  /**
+   * Title keyword exclusion list — substring match, case-insensitive.
+   * If any term appears in the product title the product is dropped.
+   * Source-specific only; defaults to [].
+   */
+  excludeTitleTerms?: string[];
+  /**
+   * Positive allowlist. When set, a product must have at least one tag from
+   * this list OR its product_type must match one of watchIndicatorTypes.
+   * Products that satisfy no positive indicator are dropped even if they
+   * pass the exclusion filters. Leave undefined to skip this gate.
+   */
+  watchIndicatorTags?: string[];
+  /** See watchIndicatorTags — product_type values that confirm "this is a watch" */
+  watchIndicatorTypes?: string[];
   rateLimit?: number;
 }
 
@@ -182,6 +197,17 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
       ...(this.shopifyConfig.excludeProductTypes ?? []),
     ].map(t => t.toLowerCase());
 
+    // Source-specific title exclusion terms (substring match, case-insensitive)
+    const excludeTitleTerms = (this.shopifyConfig.excludeTitleTerms ?? [])
+      .map(t => t.toLowerCase());
+
+    // Positive watch indicator — if set, product must match at least one
+    const watchIndicatorTags = (this.shopifyConfig.watchIndicatorTags ?? [])
+      .map(t => t.toLowerCase());
+    const watchIndicatorTypes = (this.shopifyConfig.watchIndicatorTypes ?? [])
+      .map(t => t.toLowerCase());
+    const hasPositiveFilter = watchIndicatorTags.length > 0 || watchIndicatorTypes.length > 0;
+
     // Build ordered list of endpoints to try — collection first (if configured), root fallback always
     const collectionEndpoint = this.shopifyConfig.watchCollectionHandle
       ? `${this.shopifyConfig.baseUrl}/collections/${this.shopifyConfig.watchCollectionHandle}/products.json`
@@ -251,19 +277,40 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
 
           const typeLower = (product.product_type || '').toLowerCase();
 
-          // Check product_type filter
+          // 1. Product-type exclusion
           const matchedType = nonWatchTypes.find(t => typeLower.includes(t));
           if (matchedType) {
-            addDrop(`type:"${product.product_type || '(empty)'}"`  , product.handle);
+            addDrop(`type:"${product.product_type || '(empty)'}"`, product.handle);
             continue;
           }
 
-          // Check tag filter — find the first matching non-watch tag for the drop reason
+          // 2. Tag exclusion
           const matchedTag = nonWatchTags.find(nwt => tagsArr.some(tag => tag.includes(nwt)));
           if (matchedTag) {
             const culpritTag = tagsArr.find(tag => tag.includes(matchedTag)) ?? matchedTag;
             addDrop(`tag:"${culpritTag}"`, product.handle);
             continue;
+          }
+
+          // 3. Title keyword exclusion (source-specific, only fires when configured)
+          if (excludeTitleTerms.length > 0) {
+            const titleLower = product.title.toLowerCase();
+            const matchedTerm = excludeTitleTerms.find(term => titleLower.includes(term));
+            if (matchedTerm) {
+              addDrop(`title-keyword:"${matchedTerm}"`, product.handle);
+              continue;
+            }
+          }
+
+          // 4. Positive watch indicator gate (source-specific, only fires when configured)
+          if (hasPositiveFilter) {
+            const hasWatchType = watchIndicatorTypes.some(t => typeLower.includes(t));
+            const hasWatchTag = watchIndicatorTags.length > 0 &&
+              tagsArr.some(tag => watchIndicatorTags.some(wt => tag.includes(wt)));
+            if (!hasWatchType && !hasWatchTag) {
+              addDrop(`no-watch-indicator(type:"${product.product_type}",tags:[${tagsArr.slice(0, 3).join(',')}])`, product.handle);
+              continue;
+            }
           }
 
           // Trust Shopify's `available` boolean as the primary source of truth.

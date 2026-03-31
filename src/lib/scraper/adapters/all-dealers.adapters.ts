@@ -24,7 +24,16 @@ import type { ScrapeResult, ScrapedListing } from '../base-adapter';
 // ─────────────────────────────────────────────────────────────
 // 1. CRAFT & TAILORED [Shopify] — Los Angeles, CA
 //    Focus: Vintage Rolex, Omega, Tudor, Heuer
-//    Watch collection: /collections/watches
+//    Platform: Shopify — /collections/all/products.json
+//
+//    Filtering strategy (watch-only, defense-in-depth):
+//    Layer 1 — product_type exclusion (catches standalone strap/accessory types)
+//    Layer 2 — tag exclusion (catches items tagged strap/nato/leather/etc.)
+//    Layer 3 — title keyword exclusion (catches mis-typed or untagged non-watches)
+//    Layer 4 — positive indicator gate (product must look like a watch)
+//
+//    All C&T watches use product_type "Timepiece" (or "timepiece") and
+//    carry a "timepiece" tag. Anything without these is excluded.
 // ─────────────────────────────────────────────────────────────
 export class CraftAndTailoredAdapter extends ShopifyBaseAdapter {
   constructor() {
@@ -32,10 +41,36 @@ export class CraftAndTailoredAdapter extends ShopifyBaseAdapter {
       sourceId: '',
       sourceName: 'Craft & Tailored',
       baseUrl: 'https://www.craftandtailored.com',
-      watchCollectionHandle: undefined,
-      // Exclude straps, books, lifestyle items common on this site
-      nonWatchTags: ['strap', 'nato', 'leather', 'book', 'lifestyle', 'merch', 'apparel', 'accessories', 'zodiac-strap'],
-      excludeProductTypes: ['strap', 'book', 'accessory', 'lifestyle', 'apparel'],
+      // Use /collections/all to get full catalog (~250+ watches).
+      // Root /products.json only returns ~16 items.
+      watchCollectionHandle: 'all',
+
+      // Layer 1 — product_type exclusion
+      excludeProductTypes: [
+        'strap', 'watch strap', 'nato strap', 'leather strap', 'band',
+        'bracelet', 'book', 'accessory', 'accessories', 'lifestyle',
+        'apparel', 'merch', 'tool', 'gift card',
+      ],
+
+      // Layer 2 — tag exclusion
+      nonWatchTags: [
+        'strap', 'nato', 'leather', 'leather-strap', 'zodiac-strap',
+        'book', 'lifestyle', 'merch', 'apparel', 'accessories',
+        'tools', 'spring-bar', 'pouch', 'winder', 'storage',
+      ],
+
+      // Layer 3 — title keyword exclusion (case-insensitive substring match)
+      excludeTitleTerms: [
+        'strap', ' band', 'nato', 'bracelet', 'leather strap',
+        'watch strap', 'replacement strap', 'spring bar',
+        'book', 'pouch', 'tool', 'merch', 'gift card',
+      ],
+
+      // Layer 4 — positive indicator: must look like a watch
+      // All C&T watches carry product_type "timepiece" and/or tag "timepiece"
+      watchIndicatorTags: ['timepiece', 'watch'],
+      watchIndicatorTypes: ['timepiece', 'watch'],
+
       rateLimit: 1500,
     });
   }
