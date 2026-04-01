@@ -8,7 +8,7 @@ import { emitFeedEvent } from '@/lib/social/feed-service';
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
 
   const { listingId, priceActual, notes } = await req.json();
   if (!listingId) return NextResponse.json({ error: 'listingId required' }, { status: 400 });

@@ -10,7 +10,7 @@ import { emitFeedEvent } from '@/lib/social/feed-service';
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
   const listingId = params.id;
 
   let list: 'FAVORITES' | 'OWNED' = 'FAVORITES';
@@ -50,7 +50,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
   const listingId = params.id;
 
   const deleted = await prisma.wishlistItem.deleteMany({ where: { userId, listingId } });

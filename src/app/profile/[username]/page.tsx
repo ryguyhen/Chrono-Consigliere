@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ProfilePage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
-  const viewerId = (session?.user as any)?.id;
+  const viewerId = session?.user?.id;
 
   const profile = await prisma.profile.findUnique({
     where: { username: params.username },

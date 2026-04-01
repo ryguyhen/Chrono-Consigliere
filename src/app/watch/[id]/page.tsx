@@ -31,7 +31,7 @@ const CONDITION_LABEL: Record<string, string> = {
 
 export default async function WatchDetailPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as any)?.id;
+  const userId = session?.user?.id;
   const watch = await getWatchById(params.id, userId);
 
   if (!watch || !watch.isAvailable) notFound();

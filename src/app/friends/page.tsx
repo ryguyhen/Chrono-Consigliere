@@ -44,7 +44,7 @@ function Avatar({ name, size = 34 }: { name: string | null; size?: number }) {
 export default async function FriendsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect('/login');
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
 
   const [feedEvents, following, suggestedUsers] = await Promise.all([
     getFeedForUser(userId, undefined, 30),

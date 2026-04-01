@@ -9,7 +9,7 @@ export default async function ProfileRedirect() {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect('/login');
 
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
   const profile = await prisma.profile.findUnique({
     where: { userId },
     select: { username: true },

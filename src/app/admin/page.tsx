@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth/auth.config';
 import { prisma } from '@/lib/db';
 import { AdminSourceTable } from '@/components/admin/AdminSourceTable';
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '').split(',');
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '').split(',').map(s => s.trim()).filter(Boolean);
 
 export default async function AdminPage() {
   const session = await getServerSession(authOptions);

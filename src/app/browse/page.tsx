@@ -29,9 +29,18 @@ function toArray(val: string | string[] | undefined): string[] {
   return Array.isArray(val) ? val : [val];
 }
 
+function pageUrl(filters: FiltersType, targetPage: number): string {
+  const params = Object.fromEntries(
+    Object.entries(filters)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)])
+  );
+  return `/browse?${new URLSearchParams({ ...params, page: String(targetPage) })}`;
+}
+
 export default async function BrowsePage({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as any)?.id;
+  const userId = session?.user?.id;
 
   const filters: FiltersType = {
     q: searchParams.q,
@@ -108,7 +117,7 @@ export default async function BrowsePage({ searchParams }: PageProps) {
           <div className="flex justify-center items-center gap-4 py-10 border-t border-[var(--border)]">
             {page > 1 && (
               <Link
-                href={`/browse?${new URLSearchParams({ ...Object.fromEntries(Object.entries(filters).filter(([,v]) => v !== undefined).map(([k,v]) => [k, String(v)])), page: String(page - 1) })}`}
+                href={pageUrl(filters, page - 1)}
                 className="font-mono text-[10px] tracking-[0.1em] uppercase px-4 py-2 border border-[var(--border)] rounded hover:border-gold text-muted hover:text-gold transition-colors"
               >
                 ← Prev
@@ -117,7 +126,7 @@ export default async function BrowsePage({ searchParams }: PageProps) {
             <span className="font-mono text-[10px] text-muted">{page}</span>
             {hasMore && (
               <Link
-                href={`/browse?${new URLSearchParams({ ...Object.fromEntries(Object.entries(filters).filter(([,v]) => v !== undefined).map(([k,v]) => [k, String(v)])), page: String(page + 1) })}`}
+                href={pageUrl(filters, page + 1)}
                 className="font-mono text-[10px] tracking-[0.1em] uppercase px-4 py-2 border border-[var(--border)] rounded hover:border-gold text-muted hover:text-gold transition-colors"
               >
                 Next →

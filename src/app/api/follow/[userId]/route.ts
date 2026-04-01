@@ -8,7 +8,7 @@ import { emitFeedEvent } from '@/lib/social/feed-service';
 export async function POST(_req: Request, { params }: { params: { userId: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const followerId = (session.user as any).id;
+  const followerId = session.user.id;
   const followingId = params.userId;
 
   if (followerId === followingId)
@@ -26,7 +26,7 @@ export async function POST(_req: Request, { params }: { params: { userId: string
 export async function DELETE(_req: Request, { params }: { params: { userId: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const followerId = (session.user as any).id;
+  const followerId = session.user.id;
 
   await prisma.follow.deleteMany({ where: { followerId, followingId: params.userId } });
   return NextResponse.json({ following: false });

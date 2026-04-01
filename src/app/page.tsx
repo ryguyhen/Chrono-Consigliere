@@ -8,9 +8,9 @@ import { prisma } from '@/lib/db';
 
 export default async function LandingPage() {
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as any)?.id;
+  const userId = session?.user?.id;
 
-  const [trending, newArrivals, stats, followingCount, recentTicker] = await Promise.all([
+  const [trending, newArrivals, stats, followingCount, recentTicker, dealerCount] = await Promise.all([
     getTrendingWatches(userId, 6),
     getNewArrivals(8),
     prisma.watchListing.aggregate({
@@ -31,6 +31,7 @@ export default async function LandingPage() {
         source: { select: { name: true } },
       },
     }),
+    prisma.dealerSource.count({ where: { isActive: true } }),
   ]);
 
   const totalListings = stats._count.id;
@@ -80,7 +81,7 @@ export default async function LandingPage() {
           <div className="flex justify-center gap-10 sm:gap-16 mt-12 sm:mt-20 pt-8 border-t border-white/[0.07]">
             {[
               [totalListings.toLocaleString(), 'In-stock watches'],
-              ['20+', 'Curated dealers'],
+              [dealerCount.toString(), 'Curated dealers'],
             ].map(([n, l]) => (
               <div key={l}>
                 <div className="text-[1.8rem] sm:text-[2.2rem] font-semibold text-white tracking-[-0.03em]">{n}</div>

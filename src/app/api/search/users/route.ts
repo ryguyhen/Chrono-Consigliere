@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const viewerId = (session.user as any).id;
+  const viewerId = session.user.id;
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim();
 

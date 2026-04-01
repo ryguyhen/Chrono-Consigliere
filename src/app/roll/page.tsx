@@ -17,7 +17,7 @@ export default async function RollPage({ searchParams }: PageProps) {
   // Legacy redirect
   if (searchParams.tab === 'friends') redirect('/friends');
 
-  const userId = (session.user as any).id;
+  const userId = session.user.id;
   const activeTab = searchParams.tab === 'owned' ? 'owned' : 'favorites';
   const activeCollectionId = activeTab === 'favorites' ? searchParams.collection : undefined;
 
