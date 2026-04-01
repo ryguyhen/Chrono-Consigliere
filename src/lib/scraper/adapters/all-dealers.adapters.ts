@@ -317,17 +317,18 @@ export class VintageWatchServicesAdapter extends WooCommerceBaseAdapter {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 8. GOLDFINGER'S VINTAGE [Shopify] — Vintage dealer
+// 8. GOLDFINGER'S VINTAGE [Squarespace] — Vintage dealer
 //    URL: goldfingersvintage.com
+//    Platform: Squarespace — ?format=json API, listing page: /watches
 // ─────────────────────────────────────────────────────────────
-export class GoldfingersVintageAdapter extends ShopifyBaseAdapter {
+export class GoldfingersVintageAdapter extends SquarespaceBaseAdapter {
   constructor() {
     super({
       sourceId: '',
       sourceName: "Goldfinger's Vintage",
       baseUrl: 'https://www.goldfingersvintage.com',
-      watchCollectionHandle: 'all',
-      nonWatchTags: ['strap', 'accessory', 'gift-card'],
+      listingUrl: 'https://www.goldfingersvintage.com/watches',
+      currency: 'USD',
       rateLimit: 2000,
     });
   }
