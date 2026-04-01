@@ -181,7 +181,7 @@ export abstract class WooCommerceBaseAdapter extends BaseAdapter {
         listings.push({
           sourceUrl: p.permalink,
           sourceTitle: p.name,
-          sourcePrice: p.prices?.price ? `$${(parseInt(p.prices.price) / 100).toFixed(2)}` : null,
+          sourcePrice: p.prices?.price && parseInt(p.prices.price) > 0 ? `$${(parseInt(p.prices.price) / 100).toFixed(2)}` : null,
           brand: parsed.brand ?? null,
           model: parsed.model ?? null,
           reference: parsed.reference ?? null,

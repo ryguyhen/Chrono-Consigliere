@@ -13,7 +13,7 @@ interface WatchCardProps {
 }
 
 function formatPrice(cents: number | null, currency = 'USD'): string {
-  if (!cents) return 'Price on request';
+  if (cents == null || cents <= 0) return 'Price on request';
   const amount = cents / 100;
   if (currency === 'JPY') return `¥${amount.toLocaleString('ja-JP')}`;
   if (currency === 'EUR') return `€${amount.toLocaleString('de-DE')}`;

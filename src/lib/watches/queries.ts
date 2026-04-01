@@ -93,7 +93,7 @@ export async function getWatches(
 
   let orderBy: any = { createdAt: 'desc' };
   if (filters.sort === 'price-asc') orderBy = { price: 'asc' };
-  if (filters.sort === 'price-desc') orderBy = { price: 'desc' };
+  if (filters.sort === 'price-desc') orderBy = [{ price: { sort: 'desc', nulls: 'last' } }];
   if (filters.sort === 'most-liked') orderBy = { likeCount: 'desc' };
   if (filters.sort === 'newest') orderBy = { createdAt: 'desc' };
 

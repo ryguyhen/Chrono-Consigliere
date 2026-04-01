@@ -100,7 +100,7 @@ export abstract class BaseAdapter {
     if (!raw) return null;
     const cleaned = raw.replace(/[^0-9.]/g, '');
     const parsed = parseFloat(cleaned);
-    if (isNaN(parsed)) return null;
+    if (isNaN(parsed) || parsed <= 0) return null;
     const cents = Math.round(parsed * 100);
     // Guard against INT4 overflow (max ~$21M) — null out absurd values
     return cents > 2_147_483_647 ? null : cents;

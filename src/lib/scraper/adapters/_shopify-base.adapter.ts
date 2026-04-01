@@ -353,7 +353,7 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
           listings.push({
             sourceUrl: `${this.shopifyConfig.baseUrl}/products/${product.handle}`,
             sourceTitle: product.title,
-            sourcePrice: primaryVariant?.price ? `$${primaryVariant.price}` : null,
+            sourcePrice: primaryVariant?.price && parseFloat(primaryVariant.price) > 0 ? `$${primaryVariant.price}` : null,
             brand: parsed.brand ?? null,
             model: parsed.model ?? null,
             reference: parsed.reference ?? null,
