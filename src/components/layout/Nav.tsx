@@ -10,26 +10,15 @@ interface NavProps {
 }
 
 const NAV_LINKS = [
-  { href: '/', label: 'Discover' },
   { href: '/browse', label: 'Browse' },
   { href: '/roll', label: 'Roll' },
-  { href: '/people', label: 'People' },
+  { href: '/friends', label: 'Friends' },
 ];
 
 function isActive(pathname: string, href: string) {
-  if (href === '/') return pathname === '/';
   if (href === '/roll') return pathname.startsWith('/roll');
+  if (href === '/friends') return pathname.startsWith('/friends') || pathname.startsWith('/people');
   return pathname === href || pathname.startsWith(href + '/');
-}
-
-// Minimal inline SVG icons for bottom nav
-function IconDiscover({ active }: { active: boolean }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9.5L12 3l9 6.5V21a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" />
-      <path d="M9 22V12h6v10" />
-    </svg>
-  );
 }
 
 function IconBrowse({ active }: { active: boolean }) {
@@ -51,20 +40,21 @@ function IconRoll({ active }: { active: boolean }) {
   );
 }
 
-function IconPeople({ active }: { active: boolean }) {
+function IconFriends({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 00-3-3.87" />
+      <path d="M16 3.13a4 4 0 010 7.75" />
     </svg>
   );
 }
 
 const BOTTOM_NAV = [
-  { href: '/', label: 'Discover', Icon: IconDiscover },
   { href: '/browse', label: 'Browse', Icon: IconBrowse },
   { href: '/roll', label: 'Roll', Icon: IconRoll },
-  { href: '/people', label: 'People', Icon: IconPeople },
+  { href: '/friends', label: 'Friends', Icon: IconFriends },
 ];
 
 export function Nav({ session }: NavProps) {
