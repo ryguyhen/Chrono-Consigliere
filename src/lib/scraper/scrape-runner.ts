@@ -6,6 +6,7 @@
 import { prisma } from '@/lib/db';
 import { getAdapter } from './adapter-registry';
 import type { ScrapedListing } from './base-adapter';
+import { inferBrand } from './brand-inference';
 
 export interface ScrapeJobSummary {
   sourceId: string;
@@ -139,7 +140,9 @@ function buildListingData(listing: ScrapedListing, sourceId: string) {
     sourceId,
     isAvailable: listing.isAvailable,
     lastCheckedAt: new Date(),
-    brand: listing.brand || 'Unknown',
+    brand: listing.brand
+      || inferBrand(listing.sourceTitle, listing.description ?? undefined)?.brand
+      || 'Unknown',
     model: listing.model || listing.sourceTitle,
     reference: listing.reference,
     year: listing.year,

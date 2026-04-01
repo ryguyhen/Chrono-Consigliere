@@ -5,6 +5,7 @@
 // DISCLAIMER: All listings link to the original dealer site for purchase.
 
 import { BaseAdapter, type ScrapeResult, type ScrapedListing } from '../base-adapter';
+import { inferBrand } from '../brand-inference';
 
 export interface ShopifyAdapterConfig {
   sourceId: string;
@@ -456,36 +457,16 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
     const caseMatch = text.match(/\b(\d{2}(?:\.\d)?)\s*mm\b/i);
     const caseSizeMm = caseMatch ? parseFloat(caseMatch[1]) : null;
 
-    // Brand extraction from beginning of title
-    const knownBrands = [
-      'Rolex', 'Omega', 'Patek Philippe', 'Audemars Piguet', 'A. Lange & Söhne',
-      'IWC', 'Jaeger-LeCoultre', 'Vacheron Constantin', 'Breguet', 'Tudor',
-      'Heuer', 'TAG Heuer', 'Breitling', 'Cartier', 'Piaget', 'Zenith',
-      'Longines', 'Universal Genève', 'Movado', 'Hamilton', 'Seiko',
-      'Grand Seiko', 'Citizen', 'Tissot', 'Eterna', 'Enicar', 'Doxa',
-      'Glycine', 'Vulcain', 'Wittnauer', 'Bulova', 'Elgin', 'Waltham',
-      'Panerai', 'Hublot', 'Richard Mille', 'FP Journe', 'H. Moser',
-      'MB&F', 'De Bethune', 'Roger Dubuis', 'Ulysse Nardin', 'Chopard',
-      'Bvlgari', 'Montblanc', 'Rado', 'Oris', 'Bell & Ross', 'Sinn',
-      'Glashütte Original', 'Nomos', 'Junghans', 'Laco', 'Stowa',
-      'Hanhart', 'Tutima', 'Dubey & Schaldenbrand', 'Corum', 'Ebel',
-      'Girard-Perregaux', 'Blancpain', 'Frederique Constant', 'Ball',
-    ];
+    // Brand extraction using centralized inference
+    const brandMatch = inferBrand(title, description ?? undefined);
+    const brand = brandMatch?.brand ?? null;
+    const brandMatched = brandMatch?.matched ?? null;
 
-    let brand: string | null = null;
-    const titleUpper = title.toUpperCase();
-    for (const b of knownBrands) {
-      if (titleUpper.includes(b.toUpperCase())) {
-        brand = b;
-        break;
-      }
-    }
-
-    // Model: everything after the brand in the title
+    // Model: everything after the matched brand text in the title
     let model: string | null = null;
-    if (brand) {
-      const idx = title.toUpperCase().indexOf(brand.toUpperCase());
-      model = title.slice(idx + brand.length).trim().replace(/^[-–—\s]+/, '').slice(0, 100) || null;
+    if (brandMatched) {
+      const idx = title.toLowerCase().indexOf(brandMatched.toLowerCase());
+      model = title.slice(idx + brandMatched.length).trim().replace(/^[-–—\s]+/, '').slice(0, 100) || null;
     } else {
       model = title.slice(0, 100);
     }

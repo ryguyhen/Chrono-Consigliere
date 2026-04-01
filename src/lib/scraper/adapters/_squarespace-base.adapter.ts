@@ -12,6 +12,7 @@
 
 import { chromium, firefox } from 'playwright';
 import { BaseAdapter, type ScrapeResult, type ScrapedListing } from '../base-adapter';
+import { inferBrand } from '../brand-inference';
 
 export interface SquarespaceAdapterConfig {
   sourceId: string;
@@ -57,16 +58,6 @@ const PRICE_SELECTORS = [
   '.ProductList-price',
   '.sqs-money-native',
   '[class*="price"]:not([class*="compare"])',
-];
-
-const KNOWN_BRANDS = [
-  'Rolex', 'Omega', 'Patek Philippe', 'Audemars Piguet', 'A. Lange & Söhne',
-  'IWC', 'Jaeger-LeCoultre', 'Vacheron Constantin', 'Breguet', 'Tudor',
-  'Heuer', 'TAG Heuer', 'Breitling', 'Cartier', 'Piaget', 'Zenith',
-  'Longines', 'Universal Genève', 'Movado', 'Hamilton', 'Seiko',
-  'Grand Seiko', 'Panerai', 'Hublot', 'Ulysse Nardin', 'Chopard',
-  'Montblanc', 'Oris', 'Bell & Ross', 'Sinn', 'Glashütte Original',
-  'Nomos', 'Girard-Perregaux', 'Blancpain', 'FP Journe',
 ];
 
 export abstract class SquarespaceBaseAdapter extends BaseAdapter {
@@ -524,13 +515,12 @@ export abstract class SquarespaceBaseAdapter extends BaseAdapter {
     const yearMatch = text.match(/\b(19[0-9]{2}|20[01][0-9]|202[0-4])\b/);
     const caseMatch = text.match(/\b(\d{2}(?:\.\d)?)\s*mm\b/i);
 
-    let brand: string | null = null;
-    for (const b of KNOWN_BRANDS) {
-      if (text.toUpperCase().includes(b.toUpperCase())) { brand = b; break; }
-    }
+    const brandMatch = inferBrand(title, description ?? undefined);
+    const brand = brandMatch?.brand ?? null;
+    const brandMatched = brandMatch?.matched ?? null;
 
-    const model = brand
-      ? (title.slice(title.toUpperCase().indexOf(brand.toUpperCase()) + brand.length).trim().replace(/^[-–—\s]+/, '').slice(0, 100) || null)
+    const model = brandMatched
+      ? (title.slice(title.toLowerCase().indexOf(brandMatched.toLowerCase()) + brandMatched.length).trim().replace(/^[-–—\s]+/, '').slice(0, 100) || null)
       : title.slice(0, 100);
 
     return {

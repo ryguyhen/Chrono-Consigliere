@@ -8,6 +8,7 @@
 
 import { chromium } from 'playwright';
 import { BaseAdapter, type ScrapeResult, type ScrapedListing } from '../base-adapter';
+import { inferBrand } from '../brand-inference';
 
 export interface WooCommerceAdapterConfig {
   sourceId: string;
@@ -289,25 +290,14 @@ export abstract class WooCommerceBaseAdapter extends BaseAdapter {
     const yearMatch = text.match(/\b(19[0-9]{2}|20[01][0-9]|202[0-4])\b/);
     const caseMatch = text.match(/\b(\d{2}(?:\.\d)?)\s*mm\b/i);
 
-    const knownBrands = [
-      'Rolex', 'Omega', 'Patek Philippe', 'Audemars Piguet', 'A. Lange & Söhne',
-      'IWC', 'Jaeger-LeCoultre', 'Vacheron Constantin', 'Breguet', 'Tudor',
-      'Heuer', 'TAG Heuer', 'Breitling', 'Cartier', 'Piaget', 'Zenith',
-      'Longines', 'Universal Genève', 'Movado', 'Hamilton', 'Seiko',
-      'Grand Seiko', 'Panerai', 'Hublot', 'Ulysse Nardin', 'Chopard',
-      'Montblanc', 'Oris', 'Bell & Ross', 'Sinn', 'Glashütte Original',
-      'Nomos', 'Girard-Perregaux', 'Blancpain', 'FP Journe',
-    ];
-
-    let brand: string | null = null;
-    for (const b of knownBrands) {
-      if (text.toUpperCase().includes(b.toUpperCase())) { brand = b; break; }
-    }
+    const brandMatch = inferBrand(title, description ?? undefined);
+    const brand = brandMatch?.brand ?? null;
+    const brandMatched = brandMatch?.matched ?? null;
 
     let model: string | null = null;
-    if (brand) {
-      const idx = title.toUpperCase().indexOf(brand.toUpperCase());
-      model = title.slice(idx + brand.length).trim().replace(/^[-–—\s]+/, '').slice(0, 100) || null;
+    if (brandMatched) {
+      const idx = title.toLowerCase().indexOf(brandMatched.toLowerCase());
+      model = title.slice(idx + brandMatched.length).trim().replace(/^[-–—\s]+/, '').slice(0, 100) || null;
     } else {
       model = title.slice(0, 100);
     }
