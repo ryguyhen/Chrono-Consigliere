@@ -517,20 +517,16 @@ export class DannysVintageWatchesAdapter extends ShopifyBaseAdapter {
 // 19. KAWAII VINTAGE WATCH [Shopify] — Bangkok, Thailand
 //     URL: kawaiivintagewatch.com
 // ─────────────────────────────────────────────────────────────
-export class KawaiiVintageWatchAdapter extends ShopifyBaseAdapter {
+export class KawaiiVintageWatchAdapter extends WooCommerceBaseAdapter {
   constructor() {
     super({
       sourceId: '',
       sourceName: 'Kawaii Vintage Watch',
       baseUrl: 'https://kawaiivintagewatch.com',
-      watchCollectionHandle: 'all',
-      nonWatchTags: ['strap', 'accessory'],
+      shopPath: '/shop/',
       rateLimit: 2500,
     });
   }
-
-  // Kawaii is Thailand-based; prices may be in THB or USD
-  // Their Shopify store likely shows USD for international buyers
 }
 
 // ─────────────────────────────────────────────────────────────
