@@ -335,17 +335,18 @@ export class GoldfingersVintageAdapter extends SquarespaceBaseAdapter {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 9. GOOD EVENING [Shopify] — Vintage watches
+// 9. GOOD EVENING [Squarespace] — Vintage watches
 //    URL: goodevening.co
+//    Platform: Squarespace — ?format=json API, listing page: /shop
 // ─────────────────────────────────────────────────────────────
-export class GoodEveningAdapter extends ShopifyBaseAdapter {
+export class GoodEveningAdapter extends SquarespaceBaseAdapter {
   constructor() {
     super({
       sourceId: '',
       sourceName: 'Good Evening',
       baseUrl: 'https://goodevening.co',
-      watchCollectionHandle: 'watches',
-      nonWatchTags: ['strap', 'accessory', 'book', 'film'],
+      listingUrl: 'https://goodevening.co/shop',
+      currency: 'USD',
       rateLimit: 2000,
     });
   }
