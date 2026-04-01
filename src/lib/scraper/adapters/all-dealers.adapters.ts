@@ -384,38 +384,22 @@ export class MentaWatchesAdapter extends WooCommerceBaseAdapter {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 12. FRANÇOISE PARIS [WooCommerce] — Paris, France
+// 12. FRANÇOISE PARIS [Shopify] — Paris, France
 //     URL: francoise.paris
-//     Note: French-language site; titles may be in French
+//     Platform: Shopify (Dawn 5.0.0 theme) — was misidentified as WooCommerce
+//     Note: Sells watches + jewellery; filter to watches only
 // ─────────────────────────────────────────────────────────────
-export class FrancoisePavisAdapter extends WooCommerceBaseAdapter {
+export class FrancoisePavisAdapter extends ShopifyBaseAdapter {
   constructor() {
     super({
       sourceId: '',
       sourceName: 'Françoise Paris',
       baseUrl: 'https://francoise.paris',
-      shopPath: '/boutique/',  // French WooCommerce sites often use /boutique/
-      locale: 'fr',
+      watchCollectionHandle: undefined, // use root products.json — no watch-only collection
+      excludeProductTypes: ['bracelet', 'ring', 'necklace', 'jewellery', 'jewelry', 'bague', 'collier', 'bijou'],
+      nonWatchTags: ['bijoux', 'jewelry', 'jewellery', 'ring', 'bague', 'bracelet-bijou', 'necklace'],
       rateLimit: 2500,
     });
-  }
-
-  // Override to try both /boutique/ and /shop/ paths
-  async scrape(): Promise<ScrapeResult> {
-    // Try /en/ version first for English titles
-    const originalBase = this.wooConfig.baseUrl;
-    const enUrl = `${originalBase}/en/shop/`;
-
-    try {
-      const res = await fetch(enUrl);
-      if (res.ok) {
-        this.wooConfig.shopPath = '/en/shop/';
-      }
-    } catch {
-      // Keep default
-    }
-
-    return super.scrape();
   }
 }
 
