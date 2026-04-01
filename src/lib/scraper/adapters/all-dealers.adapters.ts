@@ -335,22 +335,36 @@ export class VintageWatchServicesAdapter extends BaseAdapter {
   }
 
   private extractProductLinks(html: string): string[] {
-    const links: string[] = [];
-    // BigCommerce product cards link to /product-slug/ or /products/slug/
-    // Match href values that look like product URLs (avoid nav, search, cart, etc.)
-    const excluded = /\/(cart|account|search|login|compare|content|brand|category|brands|categories|checkout|wishlist|sitemap|rss)\b/i;
-    const re = /href="(\/[^"?#]+)"/g;
+    // Strategy 1: JSON-LD ItemList — BigCommerce category pages often include this
+    const jsonLdRe = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(html)) !== null) {
-      const path = m[1];
-      if (!excluded.test(path) && !links.includes(path) && path !== '/') {
-        links.push(path);
-      }
+    while ((m = jsonLdRe.exec(html)) !== null) {
+      try {
+        const data = JSON.parse(m[1]);
+        if (data?.['@type'] === 'ItemList' && Array.isArray(data.itemListElement)) {
+          return data.itemListElement
+            .map((item: any) => item.url ?? item.item?.url)
+            .filter(Boolean)
+            .map((url: string) => {
+              try { return new URL(url).pathname.replace(/\/$/, ''); } catch { return url; }
+            })
+            .filter((p: string) => p && p !== '/');
+        }
+      } catch { /* skip malformed */ }
     }
-    // Only keep paths that appear at least twice (title link + image link = product card)
-    const counts = new Map<string, number>();
-    for (const l of links) counts.set(l, (counts.get(l) ?? 0) + 1);
-    return [...counts.entries()].filter(([, n]) => n >= 2).map(([p]) => p);
+
+    // Strategy 2: href extraction with exclusion list (no "appears twice" heuristic)
+    const excluded = /^\/(cart|account|search|login|compare|content|brands?|categor|checkout|wishlist|sitemap|rss|subscribe|contact|about|faq|returns|shipping|blog|404|login)\b/i;
+    const hrefRe = /href="(\/[^"?#]{3,})"/g;
+    const seen = new Set<string>();
+    const links: string[] = [];
+    while ((m = hrefRe.exec(html)) !== null) {
+      const path = m[1].replace(/\/$/, '');
+      if (!path || excluded.test(path) || seen.has(path)) continue;
+      seen.add(path);
+      links.push(path);
+    }
+    return links;
   }
 
   private parseJsonLd(html: string): Record<string, any> | null {
