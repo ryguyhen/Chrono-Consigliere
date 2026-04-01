@@ -302,17 +302,12 @@ export class DobleVintageAdapter extends SquarespaceBaseAdapter {
 // ─────────────────────────────────────────────────────────────
 // 7. VINTAGE WATCH SERVICES [BigCommerce] — EU-based
 //    URL: vintagewatchservices.eu
-//    Platform: BigCommerce — sitemap-driven product discovery
-//    Strategy: sitemap.xml → sitemap_product_N.xml → product URLs →
-//              fetch each product page → parse JSON-LD structured data
+//    Platform: BigCommerce — Playwright-based (site blocks non-browser HTTP)
+//    Strategy: load /all-watches/ with Playwright → collect product hrefs →
+//              load each product page → extract JSON-LD structured data
 // ─────────────────────────────────────────────────────────────
 export class VintageWatchServicesAdapter extends BaseAdapter {
   private readonly BASE = 'https://vintagewatchservices.eu';
-  private readonly HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-  };
 
   constructor() {
     super({
@@ -323,115 +318,126 @@ export class VintageWatchServicesAdapter extends BaseAdapter {
     });
   }
 
-  private async fetchText(url: string): Promise<string | null> {
-    try {
-      const res = await fetch(url, { headers: this.HEADERS });
-      if (!res.ok) return null;
-      return await res.text();
-    } catch {
-      return null;
-    }
-  }
-
-  /** Extract <loc> URLs from an XML sitemap */
-  private extractLocs(xml: string): string[] {
-    const locs: string[] = [];
-    const re = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(xml)) !== null) locs.push(m[1].trim());
-    return locs;
-  }
-
-  /** Parse JSON-LD Product from product page HTML */
-  private parseJsonLd(html: string): Record<string, any> | null {
-    const re = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(html)) !== null) {
-      try {
-        const data = JSON.parse(m[1]);
-        if (data?.['@type'] === 'Product') return data;
-        // Sometimes wrapped in @graph
-        if (Array.isArray(data?.['@graph'])) {
-          const product = data['@graph'].find((n: any) => n['@type'] === 'Product');
-          if (product) return product;
-        }
-      } catch { /* skip malformed */ }
-    }
-    return null;
-  }
-
   async scrape(): Promise<ScrapeResult> {
     const listings: ScrapedListing[] = [];
     const errors: string[] = [];
 
-    // Step 1: fetch root sitemap and find product sub-sitemaps
-    const rootXml = await this.fetchText(`${this.BASE}/sitemap.xml`);
-    if (!rootXml) {
-      this.log('warn', 'Could not fetch sitemap.xml');
-      return { listings: [], totalFound: 0, errors: ['sitemap.xml unavailable'] };
-    }
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      locale: 'en-US',
+    });
 
-    const allLocs = this.extractLocs(rootXml);
-    const productSitemaps = allLocs.filter(u => /sitemap[_-]?product/i.test(u));
+    try {
+      const page = await context.newPage();
+      const productUrls: string[] = [];
 
-    // If no named product sitemap, check if root sitemap contains product URLs directly
-    const productUrls: string[] = [];
-    if (productSitemaps.length === 0) {
-      // Root sitemap may directly list all URLs
-      const directUrls = allLocs.filter(u => u.includes(this.BASE) && !/sitemap/i.test(u));
-      productUrls.push(...directUrls);
-    } else {
-      for (const sitemapUrl of productSitemaps) {
-        await this.delay(500);
-        const xml = await this.fetchText(sitemapUrl);
-        if (!xml) continue;
-        productUrls.push(...this.extractLocs(xml).filter(u => u.includes(this.BASE)));
-      }
-    }
+      // Step 1: paginate through /all-watches/ and collect product URLs
+      for (let p = 1; p <= 20; p++) {
+        const url = p === 1
+          ? `${this.BASE}/all-watches/`
+          : `${this.BASE}/all-watches/?page=${p}`;
 
-    this.log('info', `Found ${productUrls.length} product URLs from sitemap`);
+        await this.withRetry(() =>
+          page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 })
+        );
 
-    // Step 2: fetch each product page and extract JSON-LD
-    for (const url of productUrls) {
-      try {
+        // Wait for product cards to appear (BigCommerce Cornerstone theme)
+        await page.waitForSelector(
+          'article.card, li.product, [data-product-id], .productGrid li',
+          { timeout: 8000 }
+        ).catch(() => { /* may not exist on empty pages */ });
+
+        const found = await page.evaluate((base: string) => {
+          const urls: string[] = [];
+          // BigCommerce: product cards link via card-figure__link or card-title a
+          const selectors = [
+            'a.card-figure__link',
+            'h4.card-title a',
+            '.card-title a',
+            '[data-product-id] a',
+            'article.card a[href]',
+            'li.product a[href]',
+          ];
+          for (const sel of selectors) {
+            document.querySelectorAll(sel).forEach((el: any) => {
+              const href: string = el.href ?? '';
+              if (href.startsWith(base) && !urls.includes(href)) urls.push(href);
+            });
+          }
+          return urls;
+        }, this.BASE);
+
+        if (found.length === 0) break;
+        let added = 0;
+        for (const u of found) {
+          if (!productUrls.includes(u)) { productUrls.push(u); added++; }
+        }
+        if (added === 0) break; // no new products — end of pagination
+
         await this.delay();
-        const html = await this.fetchText(url);
-        if (!html) continue;
-
-        const ld = this.parseJsonLd(html);
-        if (!ld) continue;
-
-        const offer = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
-        const priceValue = offer?.price ?? null;
-        const currency = offer?.priceCurrency ?? 'EUR';
-        const available = offer?.availability !== 'https://schema.org/OutOfStock' &&
-          offer?.availability !== 'http://schema.org/OutOfStock';
-        const imgUrl = Array.isArray(ld.image) ? ld.image[0] : ld.image;
-
-        listings.push({
-          sourceUrl: url,
-          sourceTitle: ld.name ?? url,
-          sourcePrice: priceValue != null ? `${currency === 'EUR' ? '€' : currency}${priceValue}` : null,
-          brand: ld.brand?.name ?? null,
-          model: ld.name ?? null,
-          reference: ld.mpn ?? ld.sku ?? null,
-          year: null,
-          caseSizeMm: null,
-          caseMaterial: null,
-          dialColor: null,
-          movementType: null,
-          condition: null,
-          style: null,
-          price: priceValue != null ? Math.round(Number(priceValue) * 100) : null,
-          currency,
-          description: typeof ld.description === 'string' ? ld.description.slice(0, 1000) : null,
-          images: imgUrl ? [{ url: imgUrl, isPrimary: true }] : [],
-          isAvailable: available,
-        });
-      } catch (err: any) {
-        this.log('warn', `Failed ${url}: ${err.message}`);
-        errors.push(url);
       }
+
+      this.log('info', `Found ${productUrls.length} product URLs`);
+
+      // Step 2: visit each product and extract JSON-LD
+      for (const url of productUrls) {
+        try {
+          await this.delay();
+          await this.withRetry(() =>
+            page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
+          );
+
+          const ld = await page.evaluate((): Record<string, any> | null => {
+            for (const el of document.querySelectorAll('script[type="application/ld+json"]')) {
+              try {
+                const data = JSON.parse(el.textContent ?? '');
+                if (data?.['@type'] === 'Product') return data;
+                if (Array.isArray(data?.['@graph'])) {
+                  const prod = data['@graph'].find((n: any) => n['@type'] === 'Product');
+                  if (prod) return prod;
+                }
+              } catch { /* skip */ }
+            }
+            return null;
+          });
+
+          if (!ld) continue;
+
+          const offer = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
+          const priceValue = offer?.price ?? null;
+          const currency = offer?.priceCurrency ?? 'EUR';
+          const available = offer?.availability !== 'https://schema.org/OutOfStock' &&
+            offer?.availability !== 'http://schema.org/OutOfStock';
+          const imgUrl = Array.isArray(ld.image) ? ld.image[0] : ld.image;
+
+          listings.push({
+            sourceUrl: url,
+            sourceTitle: ld.name ?? url,
+            sourcePrice: priceValue != null ? `${currency === 'EUR' ? '€' : currency}${priceValue}` : null,
+            brand: ld.brand?.name ?? null,
+            model: ld.name ?? null,
+            reference: ld.mpn ?? ld.sku ?? null,
+            year: null,
+            caseSizeMm: null,
+            caseMaterial: null,
+            dialColor: null,
+            movementType: null,
+            condition: null,
+            style: null,
+            price: priceValue != null ? Math.round(Number(priceValue) * 100) : null,
+            currency,
+            description: typeof ld.description === 'string' ? ld.description.slice(0, 1000) : null,
+            images: imgUrl ? [{ url: imgUrl, isPrimary: true }] : [],
+            isAvailable: available,
+          });
+        } catch (err: any) {
+          this.log('warn', `Failed ${url}: ${err.message}`);
+          errors.push(url);
+        }
+      }
+    } finally {
+      await browser.close();
     }
 
     this.log('info', `Done. ${listings.length} listings, ${errors.length} errors`);
