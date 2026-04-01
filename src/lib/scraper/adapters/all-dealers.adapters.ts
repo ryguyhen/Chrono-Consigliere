@@ -478,18 +478,19 @@ export class EmpireTimeNYAdapter extends ShopifyBaseAdapter {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 17. THILLIER TIME [WooCommerce] — France/Belgium
+// 17. THILLIER TIME [Squarespace] — France/Belgium
 //     URL: thillier-time.com
-//     Note: European vintage dealer
+//     Platform: Squarespace — ?format=json on /heritage/all-watches (178 items)
+//     Note: European vintage dealer; thillier-time collection has 3 additional items
 // ─────────────────────────────────────────────────────────────
-export class ThillierTimeAdapter extends WooCommerceBaseAdapter {
+export class ThillierTimeAdapter extends SquarespaceBaseAdapter {
   constructor() {
     super({
       sourceId: '',
       sourceName: 'Thillier Time',
       baseUrl: 'https://thillier-time.com',
-      shopPath: '/shop/',
-      locale: 'fr',
+      listingUrl: 'https://thillier-time.com/heritage/all-watches',
+      currency: 'USD',
       rateLimit: 2500,
     });
   }
