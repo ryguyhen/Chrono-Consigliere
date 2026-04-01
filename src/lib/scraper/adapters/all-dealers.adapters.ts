@@ -300,19 +300,146 @@ export class DobleVintageAdapter extends SquarespaceBaseAdapter {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 7. VINTAGE WATCH SERVICES [WooCommerce] — EU-based
+// 7. VINTAGE WATCH SERVICES [BigCommerce] — EU-based
 //    URL: vintagewatchservices.eu
+//    Platform: BigCommerce — paginated listing at /all-watches/
+//    Strategy: HTTP fetch listing pages → extract product links →
+//              fetch each product page → parse JSON-LD structured data
 // ─────────────────────────────────────────────────────────────
-export class VintageWatchServicesAdapter extends WooCommerceBaseAdapter {
+export class VintageWatchServicesAdapter extends BaseAdapter {
+  private readonly BASE = 'https://vintagewatchservices.eu';
+
   constructor() {
     super({
       sourceId: '',
       sourceName: 'Vintage Watch Services',
       baseUrl: 'https://vintagewatchservices.eu',
-      shopPath: '/shop/',
-      locale: 'en',
       rateLimit: 2500,
     });
+  }
+
+  private async fetchHtml(url: string): Promise<string | null> {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+      if (!res.ok) return null;
+      return await res.text();
+    } catch {
+      return null;
+    }
+  }
+
+  private extractProductLinks(html: string): string[] {
+    const links: string[] = [];
+    // BigCommerce product cards link to /product-slug/ or /products/slug/
+    // Match href values that look like product URLs (avoid nav, search, cart, etc.)
+    const excluded = /\/(cart|account|search|login|compare|content|brand|category|brands|categories|checkout|wishlist|sitemap|rss)\b/i;
+    const re = /href="(\/[^"?#]+)"/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const path = m[1];
+      if (!excluded.test(path) && !links.includes(path) && path !== '/') {
+        links.push(path);
+      }
+    }
+    // Only keep paths that appear at least twice (title link + image link = product card)
+    const counts = new Map<string, number>();
+    for (const l of links) counts.set(l, (counts.get(l) ?? 0) + 1);
+    return [...counts.entries()].filter(([, n]) => n >= 2).map(([p]) => p);
+  }
+
+  private parseJsonLd(html: string): Record<string, any> | null {
+    const re = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      try {
+        const data = JSON.parse(m[1]);
+        if (data?.['@type'] === 'Product') return data;
+      } catch { /* skip malformed */ }
+    }
+    return null;
+  }
+
+  async scrape(): Promise<ScrapeResult> {
+    const listings: ScrapedListing[] = [];
+    const errors: string[] = [];
+    const productPaths: string[] = [];
+
+    // Step 1: collect all product URLs from paginated listing
+    for (let page = 1; page <= 20; page++) {
+      const url = page === 1
+        ? `${this.BASE}/all-watches/`
+        : `${this.BASE}/all-watches/?page=${page}`;
+
+      const html = await this.fetchHtml(url);
+      if (!html) break;
+
+      const found = this.extractProductLinks(html);
+      if (found.length === 0) break;
+
+      let added = 0;
+      for (const path of found) {
+        if (!productPaths.includes(path)) { productPaths.push(path); added++; }
+      }
+      if (added === 0) break; // no new products — end of pagination
+
+      await this.delay();
+    }
+
+    this.log('info', `Found ${productPaths.length} product links`);
+
+    // Step 2: fetch each product page and extract JSON-LD
+    for (const path of productPaths) {
+      const url = `${this.BASE}${path}`;
+      try {
+        await this.delay();
+        const html = await this.fetchHtml(url);
+        if (!html) continue;
+
+        const ld = this.parseJsonLd(html);
+        if (!ld) continue;
+
+        const offer = Array.isArray(ld.offers) ? ld.offers[0] : ld.offers;
+        const priceValue = offer?.price ?? null;
+        const currency = offer?.priceCurrency ?? 'EUR';
+        const available = offer?.availability !== 'https://schema.org/OutOfStock' &&
+          offer?.availability !== 'http://schema.org/OutOfStock';
+
+        const imgUrl = Array.isArray(ld.image) ? ld.image[0] : ld.image;
+
+        listings.push({
+          sourceUrl: url,
+          sourceTitle: ld.name ?? path,
+          sourcePrice: priceValue != null ? `${currency === 'EUR' ? '€' : currency} ${priceValue}` : null,
+          brand: ld.brand?.name ?? null,
+          model: ld.name ?? null,
+          reference: ld.mpn ?? ld.sku ?? null,
+          year: null,
+          caseSizeMm: null,
+          caseMaterial: null,
+          dialColor: null,
+          movementType: null,
+          condition: null,
+          style: null,
+          price: priceValue != null ? Math.round(Number(priceValue) * 100) : null,
+          currency,
+          description: typeof ld.description === 'string' ? ld.description.slice(0, 1000) : null,
+          images: imgUrl ? [{ url: imgUrl, isPrimary: true }] : [],
+          isAvailable: available,
+        });
+      } catch (err: any) {
+        this.log('warn', `Failed ${url}: ${err.message}`);
+        errors.push(url);
+      }
+    }
+
+    this.log('info', `Done. ${listings.length} listings, ${errors.length} errors`);
+    return { listings, totalFound: listings.length, errors };
   }
 }
 

@@ -30,7 +30,7 @@ export const ALL_DEALERS = [
     baseUrl: 'https://www.watchnet.co.jp',
     adapterName: 'WatchnetJapanAdapter',
     scrapeConfig: { platform: 'custom', note: 'Japanese custom CMS, Playwright-scraped' },
-    isActive: true,
+    isActive: false, // Railway IPs blocked by JP host — 0 product links in production
   },
   {
     name: 'Analog/Shift',
@@ -152,7 +152,7 @@ export const ALL_DEALERS = [
     baseUrl: 'https://thearrowoftime.fr',
     adapterName: 'TheArrowOfTimeAdapter',
     scrapeConfig: { platform: 'woocommerce', shopPath: '/shop/', locale: 'fr' },
-    isActive: true,
+    isActive: false, // Wix site — WC Store API unavailable, Playwright returns 0 on Railway
   },
   {
     name: 'Thillier Time',

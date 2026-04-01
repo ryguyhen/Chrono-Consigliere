@@ -56,6 +56,22 @@ export async function POST(req: Request) {
   return NextResponse.json({ queued: 1, sourceId });
 }
 
+export async function PATCH(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!isAdmin(session?.user?.email))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const { slug, isActive } = await req.json().catch(() => ({}));
+  if (!slug || typeof isActive !== 'boolean')
+    return NextResponse.json({ error: 'slug and isActive (boolean) required' }, { status: 400 });
+
+  const source = await prisma.dealerSource.findUnique({ where: { slug } });
+  if (!source) return NextResponse.json({ error: `No source with slug: ${slug}` }, { status: 404 });
+
+  await prisma.dealerSource.update({ where: { slug }, data: { isActive } });
+  return NextResponse.json({ slug, isActive });
+}
+
 export async function DELETE(req: Request) {
   const session = await getServerSession(authOptions);
   if (!isAdmin(session?.user?.email))
