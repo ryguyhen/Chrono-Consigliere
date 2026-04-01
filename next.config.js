@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 2592000, // 30 days — scraper images are stable
     remotePatterns: [
       { protocol: 'https', hostname: '**.craftandtailored.com' },
       { protocol: 'https', hostname: '**.analogshift.com' },

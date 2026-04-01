@@ -88,8 +88,8 @@ export default async function BrowsePage({ searchParams }: PageProps) {
         {/* Grid */}
         {watches.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-5 p-3 sm:p-6">
-            {watches.map(watch => (
-              <WatchCard key={watch.id} watch={watch} />
+            {watches.map((watch, i) => (
+              <WatchCard key={watch.id} watch={watch} priority={i < 6} />
             ))}
           </div>
         ) : (

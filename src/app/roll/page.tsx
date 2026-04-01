@@ -86,10 +86,11 @@ export default async function RollPage({ searchParams }: PageProps) {
       <div className="px-4 sm:px-6 py-4 sm:py-6">
         {saves.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-5">
-            {saves.map((s: any) => (
+            {saves.map((s: any, i: number) => (
               <WatchCard
                 key={s.id}
                 watch={{ ...s.listing, isLiked: false, isSaved: true, friendLikes: [] } as any}
+                priority={i < 6}
               />
             ))}
           </div>

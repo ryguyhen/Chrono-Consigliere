@@ -8,6 +8,7 @@ import type { WatchWithRelations } from '@/types';
 interface WatchCardProps {
   watch: WatchWithRelations;
   onSave?: (id: string, saved: boolean) => void;
+  priority?: boolean;
 }
 
 function formatPrice(cents: number | null, currency = 'USD'): string {
@@ -27,7 +28,7 @@ const CONDITION_LABEL: Record<string, string> = {
   FAIR: 'Fair',
 };
 
-export function WatchCard({ watch, onSave }: WatchCardProps) {
+export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
   const [saved, setSaved] = useState(watch.isSaved ?? false);
   const friendCount = watch.friendLikes?.length ?? 0;
 
@@ -53,8 +54,9 @@ export function WatchCard({ watch, onSave }: WatchCardProps) {
             src={primaryImage.url}
             alt={primaryImage.altText ?? watch.sourceTitle}
             fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
             className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            priority={priority}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
