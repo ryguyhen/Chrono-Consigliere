@@ -56,6 +56,47 @@ export async function POST(req: Request) {
   return NextResponse.json({ queued: 1, sourceId });
 }
 
+export async function DELETE(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!isAdmin(session?.user?.email))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  const { slug } = await req.json().catch(() => ({}));
+  if (!slug) return NextResponse.json({ error: 'slug required' }, { status: 400 });
+
+  const source = await prisma.dealerSource.findUnique({ where: { slug } });
+  if (!source) return NextResponse.json({ error: `No source with slug: ${slug}` }, { status: 404 });
+
+  const listings = await prisma.watchListing.findMany({
+    where: { sourceId: source.id },
+    select: { id: true },
+  });
+  const listingIds = listings.map(l => l.id);
+
+  // ActivityFeedEvent.listingId is optional — null it out (no cascade)
+  await prisma.activityFeedEvent.updateMany({
+    where: { listingId: { in: listingIds } },
+    data: { listingId: null },
+  });
+
+  // PurchaseEvent.listingId is required with no cascade — delete first
+  await prisma.purchaseEvent.deleteMany({ where: { listingId: { in: listingIds } } });
+
+  // Listings (cascades WatchImage, WatchTag, Like, SavedListing, CollectionItem)
+  const deletedListings = await prisma.watchListing.deleteMany({ where: { sourceId: source.id } });
+
+  // Scrape jobs (cascades ScrapeJobLog)
+  const deletedJobs = await prisma.scrapeJob.deleteMany({ where: { sourceId: source.id } });
+
+  await prisma.dealerSource.delete({ where: { id: source.id } });
+
+  return NextResponse.json({
+    deleted: slug,
+    listingsRemoved: deletedListings.count,
+    jobsRemoved: deletedJobs.count,
+  });
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!isAdmin(session?.user?.email))

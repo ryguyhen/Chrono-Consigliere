@@ -89,14 +89,6 @@ export const ALL_DEALERS = [
     isActive: true,
   },
   {
-    name: 'Empire Time NY',
-    slug: 'empire-time-ny',
-    baseUrl: 'https://www.empiretimeny.com',
-    adapterName: 'EmpireTimeNYAdapter',
-    scrapeConfig: { platform: 'shopify' },
-    isActive: true,
-  },
-  {
     name: "Danny's Vintage Watches",
     slug: 'dannys-vintage-watches',
     baseUrl: 'https://dannysvintagewatches.com',
