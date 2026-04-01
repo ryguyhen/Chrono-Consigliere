@@ -162,6 +162,7 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
     let pagesScraped = 0;
     let rawTotal = 0;
     let unavailableFiltered = 0;
+    let inventoryZeroFiltered = 0;
 
     // Debug mode: set SCRAPER_DEBUG=true or SCRAPER_DEBUG_SOURCE=<AdapterClassName>
     const debugAll = process.env.SCRAPER_DEBUG === 'true';
@@ -314,17 +315,24 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
             }
           }
 
-          // Trust Shopify's `available` boolean as the primary source of truth.
-          // Only use inventory_quantity as a positive override when it's explicitly
-          // set (not null/undefined) and > 0 — handles stores with misconfigured
-          // inventory management where available=false but stock exists.
-          // Do NOT treat absent inventory_quantity as "available" — that overrides
-          // sold-out items on stores that don't track inventory (e.g. C4C Japan).
-          const isAvailable = product.variants.some(
-            v => v.available === true || (v.inventory_quantity != null && v.inventory_quantity > 0)
-          );
+          // Determine availability per variant:
+          // - If the store tracks inventory (inventory_management != null) and
+          //   inventory_quantity is explicitly 0, treat that variant as OOS regardless
+          //   of the available flag (handles available=true + qty=0 misconfiguration).
+          // - Otherwise, trust Shopify's available boolean or a positive inventory_quantity.
+          // - Stores that don't track inventory (inventory_management=null, e.g. C4C Japan)
+          //   are unaffected by the quantity guard.
+          let variantInventoryZero = false;
+          const isAvailable = product.variants.some(v => {
+            if (v.inventory_management != null && v.inventory_quantity != null && v.inventory_quantity === 0) {
+              variantInventoryZero = true;
+              return false;
+            }
+            return v.available === true || (v.inventory_quantity != null && v.inventory_quantity > 0);
+          });
           if (!isAvailable) {
-            unavailableFiltered++;
+            if (variantInventoryZero) inventoryZeroFiltered++;
+            else unavailableFiltered++;
             // Don't drop — still persist with isAvailable=false so stale-marking works correctly
           }
 
@@ -385,7 +393,7 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
     const nonWatchFiltered = totalDropped; // kept for diagnostics compat
 
     // Always log a compact funnel summary
-    this.log('info', `Funnel: ${rawTotal} raw → ${totalDropped} dropped (${Object.keys(dropped).map(k => `${k}:${dropped[k].length}`).join(', ') || 'none'}) → ${listings.length} listings (${unavailableFiltered} unavailable) → ${errors.length} errors`);
+    this.log('info', `Funnel: ${rawTotal} raw → ${totalDropped} dropped (${Object.keys(dropped).map(k => `${k}:${dropped[k].length}`).join(', ') || 'none'}) → ${listings.length} listings (${unavailableFiltered} unavailable, ${inventoryZeroFiltered} qty=0) → ${errors.length} errors`);
 
     // Debug: full funnel breakdown
     if (debug) {
@@ -396,7 +404,7 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
         this.log('info', `    ${reason}: ${handles.length} (e.g. ${handles.join(', ')})`);
       }
       this.log('info', `  reached normalization: ${rawTotal - totalDropped}`);
-      this.log('info', `  isAvailable=false:     ${unavailableFiltered}`);
+      this.log('info', `  isAvailable=false:     ${unavailableFiltered} (+ ${inventoryZeroFiltered} qty=0)`);
       this.log('info', `  isAvailable=true:      ${listings.filter(l => l.isAvailable).length}`);
       this.log('info', `  normalization errors:  ${Object.values(errorBuckets).reduce((s, a) => s + a.length, 0)}`);
       if (Object.keys(errorBuckets).length > 0) {
@@ -419,6 +427,7 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
         rawTotal,
         nonWatchFiltered,
         unavailableFiltered,
+        inventoryZeroFiltered,
         dropReasons: Object.fromEntries(Object.entries(dropped).map(([k, v]) => [k, v.length])),
       },
     };

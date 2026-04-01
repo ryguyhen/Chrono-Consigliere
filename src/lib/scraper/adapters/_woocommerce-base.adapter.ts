@@ -155,6 +155,7 @@ export abstract class WooCommerceBaseAdapter extends BaseAdapter {
     const listings: ScrapedListing[] = [];
     let page = 1;
     let hasMore = true;
+    let inventoryZeroFiltered = 0;
 
     while (hasMore) {
       const url = `${apiUrl}?per_page=100&page=${page}&stock_status=instock`;
@@ -165,6 +166,12 @@ export abstract class WooCommerceBaseAdapter extends BaseAdapter {
       if (!products?.length) break;
 
       for (const p of products) {
+        // stock_status=instock filter handles most OOS items, but some stores
+        // return instock items with stock_quantity=0 (explicit zero = sold out).
+        if (p.stock_quantity != null && p.stock_quantity === 0) {
+          inventoryZeroFiltered++;
+          continue;
+        }
         const isAvailable = p.is_in_stock !== false && p.stock_status !== 'outofstock';
         const price = this.parsePrice(p.prices?.price ?? p.price ?? null);
         const description = p.short_description?.rendered ?? p.description?.rendered ?? null;
@@ -201,6 +208,9 @@ export abstract class WooCommerceBaseAdapter extends BaseAdapter {
       await this.delay(800);
     }
 
+    if (inventoryZeroFiltered > 0) {
+      this.log('info', `Funnel: ${inventoryZeroFiltered} excluded (qty=0), ${listings.length} listings returned`);
+    }
     return listings;
   }
 

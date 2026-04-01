@@ -446,14 +446,21 @@ export abstract class SquarespaceBaseAdapter extends BaseAdapter {
 
     const variants = item.variants ?? item.structuredContent?.variants ?? [];
     // Squarespace uses qtyInStock (format-json API) or stock (embedded context).
-    // unlimited: true means no stock cap. purchasable is present on context items.
-    const isAvailable = item.purchasable === true ||
-      (item.purchasable == null && variants.length === 0) || // no variant data = assume available
-      variants.some((v: any) => {
+    // unlimited: true means no stock cap.
+    // purchasable is a top-level flag but can be true even when all variant qtys are 0
+    // (Squarespace doesn't always sync it). So check variant quantities first.
+    let isAvailable: boolean;
+    if (variants.length > 0) {
+      // Variant-first: at least one variant must be unlimited or have positive qty.
+      isAvailable = variants.some((v: any) => {
         if (v.unlimited === true) return true;
         const qty = v.qtyInStock ?? v.stock ?? null;
         return qty == null || qty > 0;
       });
+    } else {
+      // No variant data: fall back to purchasable flag or assume available.
+      isAvailable = item.purchasable !== false;
+    }
 
     // priceMoney.value is a decimal string (e.g. "27500.00") — convert to cents.
     // variants[].price from format-json API is already in cents (e.g. 2750000).

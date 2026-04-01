@@ -8,6 +8,7 @@ import { getAdapter } from './adapter-registry';
 import type { ScrapedListing } from './base-adapter';
 import { inferBrand } from './brand-inference';
 import { decodeHtmlEntities } from '@/lib/format';
+import { filterTestListings, summarizeExclusions } from './test-listing-filter';
 
 export interface ScrapeJobSummary {
   sourceId: string;
@@ -37,6 +38,17 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
 
   try {
     const result = await adapter.scrape();
+
+    // --- Test-listing filter ---
+    const debug = process.env.SCRAPER_DEBUG === 'true';
+    const { filtered: cleanListings, excluded: testExcluded } = filterTestListings(result.listings);
+    summarizeExclusions(
+      testExcluded,
+      msg => console.log(`[${new Date().toISOString()}] INFO  ${source.adapterName}: ${msg}`),
+      debug,
+    );
+    result.listings = cleanListings;
+    if (result.diagnostics) result.diagnostics.testListingFiltered = testExcluded.length;
 
     // --- Batch DB write ---
     // 1. One query to load all existing URLs for this source
@@ -95,7 +107,7 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
 
     // Build error message — include diagnostics summary for visibility
     const diagSummary = result.diagnostics
-      ? ` [endpoint:${result.diagnostics.endpointUsed ?? '?'} raw:${result.diagnostics.rawTotal ?? '?'} filtered:${result.diagnostics.nonWatchFiltered ?? 0}+${result.diagnostics.unavailableFiltered ?? 0}]`
+      ? ` [endpoint:${result.diagnostics.endpointUsed ?? '?'} raw:${result.diagnostics.rawTotal ?? '?'} filtered:${result.diagnostics.nonWatchFiltered ?? 0}+${result.diagnostics.unavailableFiltered ?? 0} qty0:${result.diagnostics.inventoryZeroFiltered ?? 0} test:${result.diagnostics.testListingFiltered ?? testExcluded.length}]`
       : '';
     const errorMessage = result.errors.length > 0
       ? result.errors.slice(0, 3).join(' | ') + diagSummary
