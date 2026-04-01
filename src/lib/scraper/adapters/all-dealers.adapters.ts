@@ -302,31 +302,30 @@ export class DobleVintageAdapter extends SquarespaceBaseAdapter {
 // ─────────────────────────────────────────────────────────────
 // 7. VINTAGE WATCH SERVICES [BigCommerce] — EU-based
 //    URL: vintagewatchservices.eu
-//    Platform: BigCommerce — paginated listing at /all-watches/
-//    Strategy: HTTP fetch listing pages → extract product links →
+//    Platform: BigCommerce — sitemap-driven product discovery
+//    Strategy: sitemap.xml → sitemap_product_N.xml → product URLs →
 //              fetch each product page → parse JSON-LD structured data
 // ─────────────────────────────────────────────────────────────
 export class VintageWatchServicesAdapter extends BaseAdapter {
   private readonly BASE = 'https://vintagewatchservices.eu';
+  private readonly HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+  };
 
   constructor() {
     super({
       sourceId: '',
       sourceName: 'Vintage Watch Services',
       baseUrl: 'https://vintagewatchservices.eu',
-      rateLimit: 2500,
+      rateLimit: 2000,
     });
   }
 
-  private async fetchHtml(url: string): Promise<string | null> {
+  private async fetchText(url: string): Promise<string | null> {
     try {
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      });
+      const res = await fetch(url, { headers: this.HEADERS });
       if (!res.ok) return null;
       return await res.text();
     } catch {
@@ -334,39 +333,16 @@ export class VintageWatchServicesAdapter extends BaseAdapter {
     }
   }
 
-  private extractProductLinks(html: string): string[] {
-    // Strategy 1: JSON-LD ItemList — BigCommerce category pages often include this
-    const jsonLdRe = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+  /** Extract <loc> URLs from an XML sitemap */
+  private extractLocs(xml: string): string[] {
+    const locs: string[] = [];
+    const re = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
     let m: RegExpExecArray | null;
-    while ((m = jsonLdRe.exec(html)) !== null) {
-      try {
-        const data = JSON.parse(m[1]);
-        if (data?.['@type'] === 'ItemList' && Array.isArray(data.itemListElement)) {
-          return data.itemListElement
-            .map((item: any) => item.url ?? item.item?.url)
-            .filter(Boolean)
-            .map((url: string) => {
-              try { return new URL(url).pathname.replace(/\/$/, ''); } catch { return url; }
-            })
-            .filter((p: string) => p && p !== '/');
-        }
-      } catch { /* skip malformed */ }
-    }
-
-    // Strategy 2: href extraction with exclusion list (no "appears twice" heuristic)
-    const excluded = /^\/(cart|account|search|login|compare|content|brands?|categor|checkout|wishlist|sitemap|rss|subscribe|contact|about|faq|returns|shipping|blog|404|login)\b/i;
-    const hrefRe = /href="(\/[^"?#]{3,})"/g;
-    const seen = new Set<string>();
-    const links: string[] = [];
-    while ((m = hrefRe.exec(html)) !== null) {
-      const path = m[1].replace(/\/$/, '');
-      if (!path || excluded.test(path) || seen.has(path)) continue;
-      seen.add(path);
-      links.push(path);
-    }
-    return links;
+    while ((m = re.exec(xml)) !== null) locs.push(m[1].trim());
+    return locs;
   }
 
+  /** Parse JSON-LD Product from product page HTML */
   private parseJsonLd(html: string): Record<string, any> | null {
     const re = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
     let m: RegExpExecArray | null;
@@ -374,6 +350,11 @@ export class VintageWatchServicesAdapter extends BaseAdapter {
       try {
         const data = JSON.parse(m[1]);
         if (data?.['@type'] === 'Product') return data;
+        // Sometimes wrapped in @graph
+        if (Array.isArray(data?.['@graph'])) {
+          const product = data['@graph'].find((n: any) => n['@type'] === 'Product');
+          if (product) return product;
+        }
       } catch { /* skip malformed */ }
     }
     return null;
@@ -382,37 +363,39 @@ export class VintageWatchServicesAdapter extends BaseAdapter {
   async scrape(): Promise<ScrapeResult> {
     const listings: ScrapedListing[] = [];
     const errors: string[] = [];
-    const productPaths: string[] = [];
 
-    // Step 1: collect all product URLs from paginated listing
-    for (let page = 1; page <= 20; page++) {
-      const url = page === 1
-        ? `${this.BASE}/all-watches/`
-        : `${this.BASE}/all-watches/?page=${page}`;
-
-      const html = await this.fetchHtml(url);
-      if (!html) break;
-
-      const found = this.extractProductLinks(html);
-      if (found.length === 0) break;
-
-      let added = 0;
-      for (const path of found) {
-        if (!productPaths.includes(path)) { productPaths.push(path); added++; }
-      }
-      if (added === 0) break; // no new products — end of pagination
-
-      await this.delay();
+    // Step 1: fetch root sitemap and find product sub-sitemaps
+    const rootXml = await this.fetchText(`${this.BASE}/sitemap.xml`);
+    if (!rootXml) {
+      this.log('warn', 'Could not fetch sitemap.xml');
+      return { listings: [], totalFound: 0, errors: ['sitemap.xml unavailable'] };
     }
 
-    this.log('info', `Found ${productPaths.length} product links`);
+    const allLocs = this.extractLocs(rootXml);
+    const productSitemaps = allLocs.filter(u => /sitemap[_-]?product/i.test(u));
+
+    // If no named product sitemap, check if root sitemap contains product URLs directly
+    const productUrls: string[] = [];
+    if (productSitemaps.length === 0) {
+      // Root sitemap may directly list all URLs
+      const directUrls = allLocs.filter(u => u.includes(this.BASE) && !/sitemap/i.test(u));
+      productUrls.push(...directUrls);
+    } else {
+      for (const sitemapUrl of productSitemaps) {
+        await this.delay(500);
+        const xml = await this.fetchText(sitemapUrl);
+        if (!xml) continue;
+        productUrls.push(...this.extractLocs(xml).filter(u => u.includes(this.BASE)));
+      }
+    }
+
+    this.log('info', `Found ${productUrls.length} product URLs from sitemap`);
 
     // Step 2: fetch each product page and extract JSON-LD
-    for (const path of productPaths) {
-      const url = `${this.BASE}${path}`;
+    for (const url of productUrls) {
       try {
         await this.delay();
-        const html = await this.fetchHtml(url);
+        const html = await this.fetchText(url);
         if (!html) continue;
 
         const ld = this.parseJsonLd(html);
@@ -423,13 +406,12 @@ export class VintageWatchServicesAdapter extends BaseAdapter {
         const currency = offer?.priceCurrency ?? 'EUR';
         const available = offer?.availability !== 'https://schema.org/OutOfStock' &&
           offer?.availability !== 'http://schema.org/OutOfStock';
-
         const imgUrl = Array.isArray(ld.image) ? ld.image[0] : ld.image;
 
         listings.push({
           sourceUrl: url,
-          sourceTitle: ld.name ?? path,
-          sourcePrice: priceValue != null ? `${currency === 'EUR' ? '€' : currency} ${priceValue}` : null,
+          sourceTitle: ld.name ?? url,
+          sourcePrice: priceValue != null ? `${currency === 'EUR' ? '€' : currency}${priceValue}` : null,
           brand: ld.brand?.name ?? null,
           model: ld.name ?? null,
           reference: ld.mpn ?? ld.sku ?? null,
