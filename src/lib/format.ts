@@ -2,6 +2,23 @@
 // Shared text-formatting utilities used across the app and scraper pipeline.
 
 /**
+ * Format a price stored in cents into a display string with comma-separated
+ * thousands. Handles USD, EUR, JPY, and GBP. Returns 'Price on request' when
+ * cents is null or zero.
+ *
+ * @param cents    - price in the smallest currency unit (e.g. 1250000 = $12,500)
+ * @param currency - ISO 4217 code; defaults to 'USD'
+ */
+export function formatPrice(cents: number | null, currency = 'USD'): string {
+  if (cents == null || cents <= 0) return 'Price on request';
+  const amount = cents / 100;
+  if (currency === 'JPY') return `¥${Math.round(amount).toLocaleString('ja-JP')}`;
+  if (currency === 'EUR') return `€${amount.toLocaleString('de-DE', { maximumFractionDigits: 0 })}`;
+  if (currency === 'GBP') return `£${amount.toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
+  return `$${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
+
+/**
  * Decode HTML entities in a plain-text string.
  *
  * Handles:

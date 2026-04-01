@@ -7,7 +7,7 @@ import { prisma } from '@/lib/db';
 import Link from 'next/link';
 import Image from 'next/image';
 import { WatchRollActions } from '@/components/watches/WatchRollActions';
-import { decodeHtmlEntities } from '@/lib/format';
+import { decodeHtmlEntities, formatPrice } from '@/lib/format';
 
 // DISCLAIMER: This page links to the original dealer website for purchase.
 // Chrono Consigliere is not a seller.
@@ -57,7 +57,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
     }
   }
 
-  const price = watch.sourcePrice ?? (watch.price ? `$${(watch.price / 100).toLocaleString()}` : null);
+  const price = formatPrice(watch.price, watch.currency);
   const primaryImage = watch.images?.[0];
   const allImages = watch.images;
   const displayTitle = decodeHtmlEntities(watch.model || watch.sourceTitle);
@@ -122,7 +122,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
           )}
 
           {/* Price */}
-          <div className="text-[2.2rem] font-semibold tracking-[-0.03em] mb-1">{price ?? 'Price on request'}</div>
+          <div className="text-[2.2rem] font-semibold tracking-[-0.03em] mb-1">{price}</div>
           <div className="flex items-center gap-1.5 text-[12px] text-[var(--success)] font-medium mb-5">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] inline-block" />
             In Stock

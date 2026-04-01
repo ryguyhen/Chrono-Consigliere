@@ -4,20 +4,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
 import type { WatchWithRelations } from '@/types';
-import { decodeHtmlEntities } from '@/lib/format';
+import { decodeHtmlEntities, formatPrice } from '@/lib/format';
 
 interface WatchCardProps {
   watch: WatchWithRelations;
   onSave?: (id: string, saved: boolean) => void;
   priority?: boolean;
-}
-
-function formatPrice(cents: number | null, currency = 'USD'): string {
-  if (cents == null || cents <= 0) return 'Price on request';
-  const amount = cents / 100;
-  if (currency === 'JPY') return `¥${amount.toLocaleString('ja-JP')}`;
-  if (currency === 'EUR') return `€${amount.toLocaleString('de-DE')}`;
-  return `$${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
 
 const CONDITION_LABEL: Record<string, string> = {
@@ -112,7 +104,7 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
 
         <div className="flex items-baseline justify-between">
           <div className="text-[15px] font-normal text-ink tracking-[-0.01em]">
-            {watch.sourcePrice ?? formatPrice(watch.price, watch.currency)}
+            {formatPrice(watch.price, watch.currency)}
           </div>
           {friendCount > 0 && (
             <span className="text-[10px] text-gold font-mono">

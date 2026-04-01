@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
 import { prisma } from '@/lib/db';
 import { getFeedForUser, getTasteOverlap } from '@/lib/social/feed-service';
+import { formatPrice } from '@/lib/format';
 import Link from 'next/link';
 import Image from 'next/image';
 import PeopleSearch from './PeopleSearch';
@@ -165,7 +166,7 @@ export default async function FriendsPage() {
                             <div className="min-w-0 flex flex-col justify-center">
                               <div className="font-mono text-[9px] tracking-[0.12em] uppercase text-gold/80 mb-0.5">{event.listing.brand}</div>
                               <div className="text-[14px] font-medium text-ink truncate group-hover:text-gold transition-colors">{event.listing.model || event.listing.sourceTitle}</div>
-                              <div className="text-[11px] text-muted mt-0.5">{event.listing.sourcePrice}</div>
+                              <div className="text-[11px] text-muted mt-0.5">{formatPrice(event.listing.price, event.listing.currency)}</div>
                             </div>
                           </Link>
                         )}
