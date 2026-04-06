@@ -36,22 +36,24 @@ export function WatchRollActions({ watchId, initialState }: Props) {
       <button
         onClick={() => setList('favorites')}
         disabled={loading}
+        aria-pressed={state === 'favorites'}
         className={`flex-1 px-4 py-3 rounded text-[11px] font-bold tracking-[0.1em] uppercase transition-colors disabled:opacity-50
           ${state === 'favorites'
             ? 'bg-gold text-black hover:bg-gold-dark'
             : 'border border-[var(--border)] text-muted hover:border-gold hover:text-gold'}`}
       >
-        {state === 'favorites' ? '✓ Favorited' : '+ Favorites'}
+        {loading ? 'Saving…' : state === 'favorites' ? '✓ Favorited' : '+ Favorites'}
       </button>
       <button
         onClick={() => setList('owned')}
         disabled={loading}
+        aria-pressed={state === 'owned'}
         className={`flex-1 px-4 py-3 rounded text-[11px] font-bold tracking-[0.1em] uppercase transition-colors disabled:opacity-50
           ${state === 'owned'
             ? 'bg-gold text-black hover:bg-gold-dark'
             : 'border border-[var(--border)] text-muted hover:border-gold hover:text-gold'}`}
       >
-        {state === 'owned' ? '✓ Owned' : 'Mark Owned'}
+        {loading ? 'Saving…' : state === 'owned' ? '✓ Owned' : 'Mark Owned'}
       </button>
     </div>
   );

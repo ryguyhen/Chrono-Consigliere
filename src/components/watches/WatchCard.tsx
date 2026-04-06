@@ -51,7 +51,7 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
             alt={primaryImage.altText ?? displayTitle}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             priority={priority}
           />
         ) : (
@@ -73,15 +73,16 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
         ) : (
           <button
             onClick={handleSave}
-            className={`absolute top-2.5 right-2.5 w-9 h-9 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-150
+            aria-label={saved ? 'Remove from favorites' : 'Add to favorites'}
+            aria-pressed={saved}
+            className={`absolute top-2.5 right-2.5 w-11 h-11 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-150
               ${saved
                 ? 'bg-gold text-black opacity-100'
                 : 'bg-black/60 text-white/70 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-gold hover:text-black'}`}
-            title={saved ? 'Remove from favorites' : 'Add to favorites'}
           >
             {saved
-              ? <span className="text-[13px] font-bold leading-none">✓</span>
-              : <span className="text-[18px] font-light leading-none">+</span>}
+              ? <span className="text-[13px] font-bold leading-none" aria-hidden="true">✓</span>
+              : <span className="text-[18px] font-light leading-none" aria-hidden="true">+</span>}
           </button>
         )}
 

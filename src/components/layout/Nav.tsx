@@ -95,9 +95,12 @@ export function Nav({ session }: NavProps) {
             <>
               <Link
                 href="/profile"
-                className="w-[28px] h-[28px] rounded-full bg-gold flex items-center justify-center text-[10px] font-bold text-black cursor-pointer flex-shrink-0"
+                aria-label="Your profile"
+                className="flex items-center justify-center w-11 h-11 flex-shrink-0 -mr-1.5"
               >
-                {(session.user.name ?? session.user.email ?? 'U')[0].toUpperCase()}
+                <div className="w-7 h-7 rounded-full bg-gold flex items-center justify-center text-[10px] font-bold text-black">
+                  {(session.user.name ?? session.user.email ?? 'U')[0].toUpperCase()}
+                </div>
               </Link>
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}

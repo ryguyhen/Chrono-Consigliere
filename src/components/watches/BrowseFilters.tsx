@@ -69,6 +69,8 @@ export function BrowseFilters({ brands, styles, movements, conditions, dealers }
               <button
                 key={item.value}
                 onClick={() => updateParam(paramKey, item.value)}
+                role="checkbox"
+                aria-checked={active}
                 className={`w-full flex items-center gap-2 py-2 sm:py-1.5 text-left text-[13px] sm:text-[12px] transition-colors
                   ${active ? 'text-gold' : 'text-ink/65 hover:text-ink'}`}
               >
@@ -106,14 +108,16 @@ export function BrowseFilters({ brands, styles, movements, conditions, dealers }
           <input
             type="number"
             placeholder="Min"
+            aria-label="Minimum price"
             defaultValue={minPrice}
             onBlur={e => updatePrice('minPrice', e.target.value)}
             className="flex-1 px-2 py-1.5 text-[12px] border border-[var(--border)] rounded bg-cream text-ink outline-none focus:border-gold w-0 min-w-0"
           />
-          <span className="text-muted text-[11px]">–</span>
+          <span className="text-muted text-[11px]" aria-hidden="true">–</span>
           <input
             type="number"
             placeholder="Max"
+            aria-label="Maximum price"
             defaultValue={maxPrice}
             onBlur={e => updatePrice('maxPrice', e.target.value)}
             className="flex-1 px-2 py-1.5 text-[12px] border border-[var(--border)] rounded bg-cream text-ink outline-none focus:border-gold w-0 min-w-0"
@@ -166,9 +170,10 @@ export function BrowseFilters({ brands, styles, movements, conditions, dealers }
               <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Filters</span>
               <button
                 onClick={() => setMobileOpen(false)}
-                className="w-8 h-8 flex items-center justify-center text-muted hover:text-ink text-xl leading-none"
+                aria-label="Close filters"
+                className="w-11 h-11 flex items-center justify-center text-muted hover:text-ink text-xl leading-none"
               >
-                ×
+                <span aria-hidden="true">×</span>
               </button>
             </div>
             {filterContent}
