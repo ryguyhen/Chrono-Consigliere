@@ -25,9 +25,23 @@ export async function POST(req: Request) {
     );
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { passwordHash: true },
+  });
   if (existing) {
-    return NextResponse.json({ error: 'An account with that email already exists.' }, { status: 409 });
+    // Distinguish legacy accounts (no password) from normal conflicts so the UI
+    // can route the user to set-password instead of a dead-end error.
+    if (!existing.passwordHash) {
+      return NextResponse.json(
+        { error: 'An account with this email already exists but has no password. Set a password to sign in.', code: 'LEGACY_ACCOUNT' },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json(
+      { error: 'An account with that email already exists.', code: 'EMAIL_TAKEN' },
+      { status: 409 },
+    );
   }
 
   const passwordHash = await bcrypt.hash(password, 12);

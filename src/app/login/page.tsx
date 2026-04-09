@@ -1,17 +1,41 @@
 // src/app/login/page.tsx
 'use client';
 import { signIn, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 
-export default function LoginPage() {
+// NextAuth redirects to /login?error=<code> on OAuth failures.
+// Map known codes to human-readable messages.
+function oauthErrorMessage(code: string | null): string | null {
+  if (!code) return null;
+  switch (code) {
+    case 'OAuthAccountNotLinked':
+      return 'This email is already registered. Sign in with your password, or use Google once you\'re logged in to link accounts.';
+    case 'OAuthCallback':
+    case 'Callback':
+      return 'Google sign-in failed. Make sure Google is configured correctly and try again.';
+    case 'OAuthCreateAccount':
+      return 'Could not create your account. Please try again.';
+    case 'EmailSignin':
+      return 'Could not send sign-in email.';
+    case 'CredentialsSignin':
+      return 'Invalid email or password.';
+    case 'SessionRequired':
+      return 'Please sign in to continue.';
+    default:
+      return 'Something went wrong during sign-in. Please try again.';
+  }
+}
+
+function LoginForm() {
   const { data: session } = useSession();
   const router = useRouter();
+  const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(oauthErrorMessage(params.get('error')) ?? '');
 
   useEffect(() => {
     if (session) router.push('/');
@@ -23,8 +47,15 @@ export default function LoginPage() {
     setError('');
     const res = await signIn('credentials', { email, password, redirect: false });
     setLoading(false);
-    if (res?.error) setError('Invalid email or password.');
-    else router.push('/');
+    if (res?.error) {
+      if (res.error === 'CredentialsSignin') {
+        setError('Invalid email or password.');
+      } else {
+        setError('Sign-in failed. Please try again.');
+      }
+    } else {
+      router.push('/');
+    }
   }
 
   return (
@@ -72,8 +103,17 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="text-[12px] text-red-400 bg-red-950/50 border border-red-900/50 rounded px-3 py-2">
-              {error}
+            <div className="text-[12px] text-red-400 bg-red-950/50 border border-red-900/50 rounded px-3 py-2 space-y-1">
+              <div>{error}</div>
+              {/* Show recovery hint if it looks like a no-password account */}
+              {params.get('error') === 'CredentialsSignin' && (
+                <div className="text-muted">
+                  No password?{' '}
+                  <Link href={`/set-password${email ? `?email=${encodeURIComponent(email)}` : ''}`} className="text-gold hover:text-gold-dark">
+                    Set one here
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 
@@ -100,13 +140,29 @@ export default function LoginPage() {
           Continue with Google
         </button>
 
-        <div className="text-center mt-5 text-[12px] text-muted">
-          New here?{' '}
-          <Link href="/register" className="text-gold hover:text-gold-dark">
-            Start your roll
-          </Link>
+        <div className="text-center mt-5 space-y-1.5">
+          <div className="text-[12px] text-muted">
+            New here?{' '}
+            <Link href="/register" className="text-gold hover:text-gold-dark">
+              Start your roll
+            </Link>
+          </div>
+          <div className="text-[11px] text-muted/60">
+            Old account, no password?{' '}
+            <Link href="/set-password" className="text-gold/70 hover:text-gold">
+              Set one here
+            </Link>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

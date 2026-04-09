@@ -11,12 +11,14 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState('');
   const [done, setDone] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setErrorCode('');
 
     const res = await fetch('/api/register', {
       method: 'POST',
@@ -29,6 +31,7 @@ export default function RegisterPage() {
 
     if (!res.ok) {
       setError(data.error ?? 'Something went wrong.');
+      setErrorCode(data.code ?? '');
     } else {
       setDone(true);
     }
@@ -109,8 +112,23 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <div className="text-[12px] text-red-400 bg-red-950/50 border border-red-900/50 rounded px-3 py-2">
-                {error}
+              <div className="text-[12px] text-red-400 bg-red-950/50 border border-red-900/50 rounded px-3 py-2 space-y-1.5">
+                <div>{error}</div>
+                {errorCode === 'EMAIL_TAKEN' && (
+                  <div className="text-muted">
+                    <Link href="/login" className="text-gold hover:text-gold-dark">Sign in instead →</Link>
+                  </div>
+                )}
+                {errorCode === 'LEGACY_ACCOUNT' && (
+                  <div className="text-muted">
+                    <Link
+                      href={`/set-password?email=${encodeURIComponent(email)}`}
+                      className="text-gold hover:text-gold-dark"
+                    >
+                      Set your password →
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
