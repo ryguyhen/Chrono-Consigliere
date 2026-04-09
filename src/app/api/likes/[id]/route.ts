@@ -30,10 +30,13 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   const userId = session.user.id;
   const listingId = params.id;
 
-  await prisma.like.deleteMany({ where: { userId, listingId } });
-  await prisma.watchListing.update({
-    where: { id: listingId },
-    data: { likeCount: { decrement: 1 } },
-  });
+  const deleted = await prisma.like.deleteMany({ where: { userId, listingId } });
+  if (deleted.count > 0) {
+    // Guard: only decrement if count is already positive to prevent going negative
+    await prisma.watchListing.updateMany({
+      where: { id: listingId, likeCount: { gt: 0 } },
+      data: { likeCount: { decrement: 1 } },
+    });
+  }
   return NextResponse.json({ liked: false });
 }

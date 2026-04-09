@@ -15,16 +15,23 @@ export default async function LandingPage() {
   const session = await getServerSession(authOptions);
 
   // Only fetch what's needed above the fold: hero stats + ticker.
+  // Both queries must exclude disabled sources (same rule as all public listing queries).
+  const ACTIVE_LISTING = { isAvailable: true, source: { isActive: true } } as const;
+
   const [stats, dealerCount, recentTicker] = await Promise.all([
     prisma.watchListing.aggregate({
-      where: { isAvailable: true },
+      where: ACTIVE_LISTING,
       _count: { id: true },
     }),
     prisma.dealerSource.count({ where: { isActive: true } }),
     prisma.watchListing.findMany({
-      where: { isAvailable: true },
+      where: {
+        ...ACTIVE_LISTING,
+        // Only ticker entries where brand is known — avoids "Just in: Unknown …" entries
+        brand: { not: 'Unknown' },
+      },
       orderBy: { createdAt: 'desc' },
-      take: 6,
+      take: 8,
       select: {
         brand: true,
         model: true,
@@ -98,7 +105,7 @@ export default async function LandingPage() {
             {recentTicker.map((w, i) => (
               <div key={i} className="flex items-center gap-2.5 flex-shrink-0">
                 <span className="w-1 h-1 rounded-full bg-gold/50 flex-shrink-0" />
-                {w.brand && w.model
+                {w.brand && w.brand !== 'Unknown' && w.model
                   ? `Just in: ${w.brand} ${w.model}${w.source?.name ? ` — ${w.source.name}` : ''}`
                   : `Just in: ${w.sourceTitle}${w.source?.name ? ` — ${w.source.name}` : ''}`}
               </div>

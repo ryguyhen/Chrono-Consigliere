@@ -55,8 +55,9 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
 
   const deleted = await prisma.wishlistItem.deleteMany({ where: { userId, listingId } });
   if (deleted.count > 0) {
-    await prisma.watchListing.update({
-      where: { id: listingId },
+    // Guard: only decrement if count is already positive to prevent going negative
+    await prisma.watchListing.updateMany({
+      where: { id: listingId, saveCount: { gt: 0 } },
       data: { saveCount: { decrement: 1 } },
     });
   }

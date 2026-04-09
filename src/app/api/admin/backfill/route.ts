@@ -34,9 +34,12 @@ export async function POST(req: Request) {
   if (task === 'html-entities') {
     return runHtmlEntityBackfill();
   }
+  if (task === 'fix-zero-prices') {
+    return runZeroPriceBackfill();
+  }
 
   return NextResponse.json(
-    { error: 'task required: "brands" | "html-entities"' },
+    { error: 'task required: "brands" | "html-entities" | "fix-zero-prices"' },
     { status: 400 },
   );
 }
@@ -103,4 +106,18 @@ async function runHtmlEntityBackfill() {
   }
 
   return NextResponse.json({ task: 'html-entities', processed, fixed });
+}
+
+/**
+ * Normalize price: 0 → null for legacy listings.
+ * price:0 was stored before parsePrice() returned null for zero values.
+ * A zero price sorts before all priced listings in price-asc and is
+ * indistinguishable from "Price on request" in the UI — null is correct.
+ */
+async function runZeroPriceBackfill() {
+  const result = await prisma.watchListing.updateMany({
+    where: { price: 0 },
+    data: { price: null },
+  });
+  return NextResponse.json({ task: 'fix-zero-prices', fixed: result.count });
 }
