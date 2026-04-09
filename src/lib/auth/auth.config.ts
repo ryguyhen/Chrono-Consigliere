@@ -3,6 +3,7 @@ import { PrismaAdapter } from '@auth/prisma-adapter';
 import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import type { NextAuthOptions } from 'next-auth';
+import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { generateUsername } from '@/lib/auth/generate-username';
 
@@ -26,13 +27,19 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null;
-        // For MVP: simplified auth — in prod use bcrypt + hashed passwords
+        if (!credentials?.email || !credentials?.password) return null;
+
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
+          select: { id: true, email: true, name: true, passwordHash: true },
         });
-        if (!user) return null;
-        // TODO: in production, verify credentials.password against hashed pw
+
+        // No account, or account was created via OAuth (no passwordHash)
+        if (!user || !user.passwordHash) return null;
+
+        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!valid) return null;
+
         return { id: user.id, email: user.email, name: user.name };
       },
     }),

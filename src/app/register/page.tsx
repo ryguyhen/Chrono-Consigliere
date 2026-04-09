@@ -8,6 +8,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -20,7 +21,7 @@ export default function RegisterPage() {
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email }),
+      body: JSON.stringify({ name, email, password }),
     });
 
     const data = await res.json();
@@ -48,9 +49,9 @@ export default function RegisterPage() {
         {done ? (
           <div className="text-center">
             <div className="text-[1.5rem] mb-3 text-gold">◈</div>
-            <div className="text-[1.1rem] font-semibold mb-2">You're in.</div>
+            <div className="text-[1.1rem] font-semibold mb-2">You&apos;re in.</div>
             <p className="text-[13px] text-muted mb-6 leading-relaxed">
-              Account created. Sign in with your email — no password needed yet.
+              Account created. Sign in with your email and password.
             </p>
             <button
               onClick={() => router.push('/login')}
@@ -62,10 +63,11 @@ export default function RegisterPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block font-mono text-[9px] uppercase tracking-[0.12em] text-muted mb-1.5">
+              <label htmlFor="reg-name" className="block font-mono text-[9px] uppercase tracking-[0.12em] text-muted mb-1.5">
                 Name
               </label>
               <input
+                id="reg-name"
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -75,16 +77,34 @@ export default function RegisterPage() {
               />
             </div>
             <div>
-              <label className="block font-mono text-[9px] uppercase tracking-[0.12em] text-muted mb-1.5">
+              <label htmlFor="reg-email" className="block font-mono text-[9px] uppercase tracking-[0.12em] text-muted mb-1.5">
                 Email
               </label>
               <input
+                id="reg-email"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
+                autoComplete="email"
                 className="w-full px-3 py-2.5 border border-[var(--border)] rounded bg-parchment text-[13px] text-ink outline-none focus:border-gold transition-colors placeholder:text-muted/50"
+              />
+            </div>
+            <div>
+              <label htmlFor="reg-password" className="block font-mono text-[9px] uppercase tracking-[0.12em] text-muted mb-1.5">
+                Password
+              </label>
+              <input
+                id="reg-password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Min. 8 characters"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                className="w-full px-3 py-2.5 border border-[var(--border)] rounded bg-parchment text-[13px] text-ink outline-none focus:border-gold transition-colors"
               />
             </div>
 
