@@ -4,6 +4,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import type { NextAuthOptions } from 'next-auth';
 import { prisma } from '@/lib/db';
+import { generateUsername } from '@/lib/auth/generate-username';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
@@ -52,11 +53,10 @@ export const authOptions: NextAuthOptions = {
       if (user.id) {
         const existing = await prisma.profile.findUnique({ where: { userId: user.id } });
         if (!existing && user.email) {
-          const username = user.email.split('@')[0].replace(/[^a-z0-9]/gi, '').toLowerCase();
           await prisma.profile.create({
             data: {
               userId: user.id,
-              username: `${username}${Math.floor(Math.random() * 999)}`,
+              username: generateUsername(user.email),
               displayName: user.name ?? undefined,
             },
           });

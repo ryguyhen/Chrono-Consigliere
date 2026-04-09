@@ -1,6 +1,6 @@
-// src/app/feed/page.tsx
+// Legacy /feed redirect — canonical URL is /friends
 import { redirect } from 'next/navigation';
 
 export default function FeedPage() {
-  redirect('/roll?tab=friends');
+  redirect('/friends');
 }

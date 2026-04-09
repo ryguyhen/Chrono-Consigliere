@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db';
 import { getTasteOverlap } from '@/lib/social/feed-service';
 import { WatchCard } from '@/components/watches/WatchCard';
 import { FollowButton } from '@/components/profile/FollowButton';
+import type { WatchWithRelations } from '@/types';
 import Link from 'next/link';
 
 interface PageProps { params: { username: string } }
@@ -166,18 +167,7 @@ export default async function ProfilePage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Content tabs */}
-      <div className="border-b border-[var(--border)] bg-surface">
-        <div className="max-w-[900px] mx-auto flex">
-          {['Roll', 'Liked', 'Collections'].map(tab => (
-            <div key={tab} className="px-5 py-3.5 text-[12px] uppercase tracking-[0.08em] cursor-pointer border-b-2 border-gold text-ink first:border-b-2">
-              {tab}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Saved watches */}
+      {/* Roll */}
       <div className="max-w-[900px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {saves.length > 0 ? (
           <>
@@ -188,12 +178,7 @@ export default async function ProfilePage({ params }: PageProps) {
               {saves.map(s => (
                 <WatchCard
                   key={s.id}
-                  watch={{
-                    ...s.listing,
-                    isLiked: false,
-                    isSaved: true,
-                    friendLikes: [],
-                  } as any}
+                  watch={{ ...s.listing, isLiked: false, isSaved: true, isOwned: false, friendLikes: [] } as WatchWithRelations}
                 />
               ))}
             </div>

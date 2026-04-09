@@ -6,14 +6,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
 import { prisma } from '@/lib/db';
 import { runScrapeJob } from '@/lib/scraper/scrape-runner';
-
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? '').split(',').map(e => e.trim()).filter(Boolean);
-
-function isAdmin(email: string | null | undefined) {
-  if (!email) return false;
-  if (process.env.NODE_ENV === 'development') return true; // allow all in dev
-  return ADMIN_EMAILS.includes(email);
-}
+import { isAdmin } from '@/lib/auth/is-admin';
 
 function hasCronAuth(req: Request): boolean {
   const secret = process.env.CRON_SECRET;

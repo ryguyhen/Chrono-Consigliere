@@ -5,18 +5,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
 import { prisma } from '@/lib/db';
 import { getFeedForUser, getTasteOverlap } from '@/lib/social/feed-service';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, timeAgo } from '@/lib/format';
 import Link from 'next/link';
 import Image from 'next/image';
 import PeopleSearch from './PeopleSearch';
 
-function timeAgo(date: Date): string {
-  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return 'just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-  return `${Math.floor(seconds / 86400)}d`;
-}
 
 const EVENT_COPY: Record<string, string> = {
   LIKED: 'liked',

@@ -29,6 +29,17 @@ export function formatPrice(cents: number | null, currency = 'USD'): string {
  * Safe to call on already-decoded strings (idempotent — won't double-decode
  * because after the first pass no `&...;` sequences remain).
  */
+/**
+ * Format a Date as a compact relative time string (e.g. "just now", "3m", "2h", "5d").
+ */
+export function timeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.floor(seconds / 86400)}d`;
+}
+
 export function decodeHtmlEntities(text: string): string {
   return text
     // Named entities first

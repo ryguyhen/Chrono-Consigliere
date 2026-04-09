@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth/auth.config';
 import { prisma } from '@/lib/db';
 import { WatchCard } from '@/components/watches/WatchCard';
 import Link from 'next/link';
+import type { WatchWithRelations } from '@/types';
 
 interface PageProps {
   searchParams: { tab?: string; collection?: string };
@@ -47,7 +48,7 @@ export default async function RollPage({ searchParams }: PageProps) {
     }),
   ]);
 
-  const activeCollection = collections.find((c: any) => c.id === activeCollectionId);
+  const activeCollection = collections.find(c => c.id === activeCollectionId);
 
   return (
     <div>
@@ -92,7 +93,7 @@ export default async function RollPage({ searchParams }: PageProps) {
           >
             All ({favoritesCount})
           </Link>
-          {collections.map((col: any) => (
+          {collections.map(col => (
             <Link
               key={col.id}
               href={`/roll?collection=${col.id}`}
@@ -114,16 +115,10 @@ export default async function RollPage({ searchParams }: PageProps) {
       <div className="px-4 sm:px-6 py-4 sm:py-6">
         {saves.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-5">
-            {saves.map((s: any, i: number) => (
+            {saves.map((s, i) => (
               <WatchCard
                 key={s.id}
-                watch={{
-                  ...s.listing,
-                  isLiked: false,
-                  isSaved: activeTab === 'favorites',
-                  isOwned: activeTab === 'owned',
-                  friendLikes: [],
-                } as any}
+                watch={{ ...s.listing, isLiked: false, isSaved: activeTab === 'favorites', isOwned: activeTab === 'owned', friendLikes: [] } as WatchWithRelations}
                 priority={i < 6}
               />
             ))}

@@ -1,6 +1,7 @@
 // src/app/api/register/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { generateUsername } from '@/lib/auth/generate-username';
 
 export async function POST(req: Request) {
   const { name, email } = await req.json().catch(() => ({}));
@@ -19,8 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'An account with that email already exists.' }, { status: 409 });
   }
 
-  const username = email.split('@')[0].replace(/[^a-z0-9]/gi, '').toLowerCase();
-  const uniqueUsername = `${username}${Math.floor(Math.random() * 9999)}`;
+  const uniqueUsername = generateUsername(email);
 
   await prisma.user.create({
     data: {
