@@ -6,6 +6,16 @@ import type { BrowseFilters, PaginatedWatches, WatchWithRelations } from '@/type
 
 const PAGE_SIZE = 24;
 
+/**
+ * Base filter applied to ALL public-facing listing queries.
+ * Excludes listings from disabled sources, deduplicates, and hides unavailable inventory.
+ */
+const PUBLIC_WHERE = {
+  isAvailable: true,
+  duplicateOf: null,
+  source: { isActive: true },
+} as const;
+
 const LISTING_SELECT = {
   id: true,
   brand: true,
@@ -44,10 +54,7 @@ export async function getWatches(
   const page = filters.page ?? 1;
   const skip = (page - 1) * PAGE_SIZE;
 
-  const where: any = {
-    isAvailable: true,
-    duplicateOf: null, // exclude deduplicated listings
-  };
+  const where: any = { ...PUBLIC_WHERE };
 
   if (filters.q) {
     where.OR = [
@@ -76,7 +83,7 @@ export async function getWatches(
   }
 
   if (filters.dealer?.length) {
-    where.source = { slug: { in: filters.dealer } };
+    where.source = { isActive: true, slug: { in: filters.dealer } };
   }
 
   if (filters.minPrice || filters.maxPrice) {
@@ -141,8 +148,8 @@ export async function getWatchById(
   id: string,
   userId?: string
 ): Promise<WatchWithRelations | null> {
-  const watch = await prisma.watchListing.findUnique({
-    where: { id },
+  const watch = await prisma.watchListing.findFirst({
+    where: { id, source: { isActive: true } },
     select: {
       ...LISTING_SELECT,
       images: {
@@ -174,24 +181,24 @@ export async function getFilterOptions() {
   const [brands, styles, movements, conditions, dealers] = await Promise.all([
     prisma.watchListing.groupBy({
       by: ['brand'],
-      where: { isAvailable: true },
+      where: { ...PUBLIC_WHERE },
       _count: true,
       orderBy: { _count: { brand: 'desc' } },
       take: 60,
     }),
     prisma.watchListing.groupBy({
       by: ['style'],
-      where: { isAvailable: true, style: { not: null } },
+      where: { ...PUBLIC_WHERE, style: { not: null } },
       _count: true,
     }),
     prisma.watchListing.groupBy({
       by: ['movementType'],
-      where: { isAvailable: true, movementType: { not: null } },
+      where: { ...PUBLIC_WHERE, movementType: { not: null } },
       _count: true,
     }),
     prisma.watchListing.groupBy({
       by: ['condition'],
-      where: { isAvailable: true, condition: { not: null } },
+      where: { ...PUBLIC_WHERE, condition: { not: null } },
       _count: true,
     }),
     prisma.dealerSource.findMany({
@@ -215,8 +222,7 @@ export async function getFilterOptions() {
 export async function getEngagedListings(limit = 6): Promise<WatchWithRelations[]> {
   const listings = await prisma.watchListing.findMany({
     where: {
-      isAvailable: true,
-      duplicateOf: null,
+      ...PUBLIC_WHERE,
       OR: [{ likeCount: { gt: 0 } }, { saveCount: { gt: 0 } }],
     },
     select: LISTING_SELECT,
@@ -232,7 +238,7 @@ export async function getEngagedListings(limit = 6): Promise<WatchWithRelations[
 
 export async function getNewArrivals(limit = 8): Promise<WatchWithRelations[]> {
   const listings = await prisma.watchListing.findMany({
-    where: { isAvailable: true, duplicateOf: null },
+    where: { ...PUBLIC_WHERE },
     select: LISTING_SELECT,
     orderBy: { createdAt: 'desc' },
     take: limit,
