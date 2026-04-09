@@ -17,31 +17,8 @@
 
 FROM node:18-bookworm-slim
 
-# Playwright system dependencies (Chromium + Firefox)
-RUN apt-get update && apt-get install -y \
-  openssl \
-  libglib2.0-0 \
-  libnss3 \
-  libnspr4 \
-  libatk1.0-0 \
-  libatk-bridge2.0-0 \
-  libcups2 \
-  libdrm2 \
-  libdbus-1-3 \
-  libxcb1 \
-  libxkbcommon0 \
-  libx11-6 \
-  libxcomposite1 \
-  libxdamage1 \
-  libxext6 \
-  libxfixes3 \
-  libxrandr2 \
-  libgbm1 \
-  libpango-1.0-0 \
-  libcairo2 \
-  libasound2 \
-  libatspi2.0-0 \
-  && rm -rf /var/lib/apt/lists/*
+# openssl required by Prisma; browser deps are installed by playwright --with-deps below
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -50,9 +27,8 @@ COPY prisma ./prisma/
 
 RUN npm install
 
-# Install Chromium (required by all Playwright sources)
-# Install Firefox (required by Squarespace/Cloudflare-protected sources)
-RUN npx playwright install chromium firefox
+# Install Chromium + Firefox and all required system dependencies
+RUN npx playwright install --with-deps chromium firefox
 
 COPY . .
 
