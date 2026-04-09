@@ -30,12 +30,18 @@ function toArray(val: string | string[] | undefined): string[] {
 }
 
 function pageUrl(filters: FiltersType, targetPage: number): string {
-  const params = Object.fromEntries(
-    Object.entries(filters)
-      .filter(([, v]) => v !== undefined)
-      .map(([k, v]) => [k, String(v)])
-  );
-  return `/browse?${new URLSearchParams({ ...params, page: String(targetPage) })}`;
+  const params = new URLSearchParams();
+  if (filters.q) params.set('q', filters.q);
+  filters.brand?.forEach(v => params.append('brand', v));
+  filters.style?.forEach(v => params.append('style', v));
+  filters.movement?.forEach(v => params.append('movement', v));
+  filters.condition?.forEach(v => params.append('condition', v));
+  filters.dealer?.forEach(v => params.append('dealer', v));
+  if (filters.minPrice) params.set('minPrice', String(filters.minPrice));
+  if (filters.maxPrice) params.set('maxPrice', String(filters.maxPrice));
+  if (filters.sort && filters.sort !== 'newest') params.set('sort', filters.sort);
+  params.set('page', String(targetPage));
+  return `/browse?${params}`;
 }
 
 export default async function BrowsePage({ searchParams }: PageProps) {

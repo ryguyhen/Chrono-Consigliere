@@ -17,7 +17,6 @@ export async function emitFeedEvent({
   listingId?: string;
   metadata?: Record<string, string>;
 }) {
-  // Create the feed event
   const event = await prisma.activityFeedEvent.create({
     data: {
       actorId,
@@ -28,7 +27,7 @@ export async function emitFeedEvent({
   });
 
   // If this is a purchase, check for influence events:
-  // Did any followers of the buyer like/save this watch?
+  // Did any followed users like/save this watch before the buyer did?
   if (type === 'PURCHASED' && listingId) {
     await checkAndEmitInfluenceEvents(actorId, listingId);
   }
@@ -36,20 +35,15 @@ export async function emitFeedEvent({
   return event;
 }
 
-async function checkAndEmitInfluenceEvents(
-  buyerId: string,
-  listingId: string
-) {
-  // Find who the buyer follows
+async function checkAndEmitInfluenceEvents(buyerId: string, listingId: string) {
   const following = await prisma.follow.findMany({
     where: { followerId: buyerId },
     select: { followingId: true },
   });
   const followingIds = following.map(f => f.followingId);
-
   if (!followingIds.length) return;
 
-  // Find friends who had liked or saved this listing
+  // Find friends who liked or saved this listing
   const [friendLikes, friendSaves] = await Promise.all([
     prisma.like.findMany({
       where: { listingId, userId: { in: followingIds } },
@@ -68,22 +62,22 @@ async function checkAndEmitInfluenceEvents(
     ]),
   ];
 
-  // Emit influence events — one per influencer friend
-  for (const influencerId of influencerIds) {
-    await prisma.activityFeedEvent.create({
-      data: {
-        actorId: buyerId,
-        targetUserId: influencerId,
-        type: 'INFLUENCED_PURCHASE',
-        listingId,
-        metadata: { influencedBy: influencerId },
-      },
-    });
-  }
+  if (!influencerIds.length) return;
+
+  // Bulk-create all influence events in one query
+  await prisma.activityFeedEvent.createMany({
+    data: influencerIds.map(influencerId => ({
+      actorId: buyerId,
+      targetUserId: influencerId,
+      type: 'INFLUENCED_PURCHASE' as FeedEventType,
+      listingId,
+      metadata: { influencedBy: influencerId },
+    })),
+    skipDuplicates: true,
+  });
 }
 
 export async function getFeedForUser(userId: string, cursor?: string, limit = 20) {
-  // Get who this user follows
   const following = await prisma.follow.findMany({
     where: { followerId: userId },
     select: { followingId: true },
@@ -106,32 +100,37 @@ export async function getFeedForUser(userId: string, cursor?: string, limit = 20
 }
 
 export async function getTasteOverlap(userId: string, friendId: string) {
-  const [myLikes, friendLikes, mySaves, friendSaves] = await Promise.all([
-    prisma.like.findMany({ where: { userId }, select: { listingId: true } }),
-    prisma.like.findMany({ where: { userId: friendId }, select: { listingId: true } }),
-    prisma.wishlistItem.findMany({ where: { userId }, select: { listingId: true } }),
-    prisma.wishlistItem.findMany({ where: { userId: friendId }, select: { listingId: true } }),
+  // Fetch both users' engagement in two queries (user+friend likes/saves each)
+  // rather than four separate per-user queries.
+  const [myEngagement, friendEngagement] = await Promise.all([
+    prisma.$queryRaw<{ listingId: string }[]>`
+      SELECT "listingId" FROM "Like" WHERE "userId" = ${userId}
+      UNION
+      SELECT "listingId" FROM "WishlistItem" WHERE "userId" = ${userId}
+    `,
+    prisma.$queryRaw<{ listingId: string }[]>`
+      SELECT "listingId" FROM "Like" WHERE "userId" = ${friendId}
+      UNION
+      SELECT "listingId" FROM "WishlistItem" WHERE "userId" = ${friendId}
+    `,
   ]);
 
-  const myIds = new Set([...myLikes, ...mySaves].map(i => i.listingId));
-  const friendIds = new Set([...friendLikes, ...friendSaves].map(i => i.listingId));
+  const myIds = new Set(myEngagement.map(r => r.listingId));
+  const friendIds = new Set(friendEngagement.map(r => r.listingId));
   const overlapIds = [...myIds].filter(id => friendIds.has(id));
 
-  if (!overlapIds.length) return { overlap: [], score: 0, sharedBrands: [], sharedStyles: [] };
+  if (!overlapIds.length) return { overlapCount: 0, score: 0, sharedBrands: [], sharedStyles: [], sampleListingIds: [] };
 
   const overlapListings = await prisma.watchListing.findMany({
     where: { id: { in: overlapIds } },
-    select: { brand: true, style: true, movementType: true, caseSizeMm: true },
+    select: { brand: true, style: true },
   });
-
-  const brands = overlapListings.map(l => l.brand).filter(Boolean);
-  const styles = overlapListings.map(l => l.style).filter(Boolean);
 
   return {
     overlapCount: overlapIds.length,
     score: Math.round((overlapIds.length / Math.max(myIds.size, 1)) * 100),
-    sharedBrands: [...new Set(brands)] as string[],
-    sharedStyles: [...new Set(styles)] as string[],
+    sharedBrands: [...new Set(overlapListings.map(l => l.brand).filter(Boolean))] as string[],
+    sharedStyles: [...new Set(overlapListings.map(l => l.style).filter(Boolean))] as string[],
     sampleListingIds: overlapIds.slice(0, 6),
   };
 }

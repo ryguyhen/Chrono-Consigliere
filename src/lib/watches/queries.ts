@@ -1,6 +1,7 @@
 // src/lib/watches/queries.ts
 // Server-side data fetching for watch listings.
 
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
 import type { BrowseFilters, PaginatedWatches, WatchWithRelations } from '@/types';
 
@@ -170,44 +171,51 @@ export async function getWatchById(
   return { ...watch, isLiked, isSaved, isOwned } as WatchWithRelations;
 }
 
-export async function getFilterOptions() {
-  const [brands, styles, movements, conditions, dealers] = await Promise.all([
-    prisma.watchListing.groupBy({
-      by: ['brand'],
-      where: { isAvailable: true },
-      _count: true,
-      orderBy: { _count: { brand: 'desc' } },
-      take: 60,
-    }),
-    prisma.watchListing.groupBy({
-      by: ['style'],
-      where: { isAvailable: true, style: { not: null } },
-      _count: true,
-    }),
-    prisma.watchListing.groupBy({
-      by: ['movementType'],
-      where: { isAvailable: true, movementType: { not: null } },
-      _count: true,
-    }),
-    prisma.watchListing.groupBy({
-      by: ['condition'],
-      where: { isAvailable: true, condition: { not: null } },
-      _count: true,
-    }),
-    prisma.dealerSource.findMany({
-      where: { isActive: true },
-      select: { slug: true, name: true, _count: { select: { listings: { where: { isAvailable: true } } } } },
-    }),
-  ]);
+// Cached for 1 hour — filter options only change when scrapers run.
+// Invalidate the 'filter-options' tag after a scrape completes if you want
+// instant freshness; otherwise stale-while-fresh is fine here.
+export const getFilterOptions = unstable_cache(
+  async () => {
+    const [brands, styles, movements, conditions, dealers] = await Promise.all([
+      prisma.watchListing.groupBy({
+        by: ['brand'],
+        where: { isAvailable: true },
+        _count: true,
+        orderBy: { _count: { brand: 'desc' } },
+        take: 60,
+      }),
+      prisma.watchListing.groupBy({
+        by: ['style'],
+        where: { isAvailable: true, style: { not: null } },
+        _count: true,
+      }),
+      prisma.watchListing.groupBy({
+        by: ['movementType'],
+        where: { isAvailable: true, movementType: { not: null } },
+        _count: true,
+      }),
+      prisma.watchListing.groupBy({
+        by: ['condition'],
+        where: { isAvailable: true, condition: { not: null } },
+        _count: true,
+      }),
+      prisma.dealerSource.findMany({
+        where: { isActive: true },
+        select: { slug: true, name: true, _count: { select: { listings: { where: { isAvailable: true } } } } },
+      }),
+    ]);
 
-  return {
-    brands: brands.map(b => ({ value: b.brand, count: b._count })),
-    styles: styles.map(s => ({ value: s.style!, count: s._count })),
-    movements: movements.map(m => ({ value: m.movementType!, count: m._count })),
-    conditions: conditions.map(c => ({ value: c.condition!, count: c._count })),
-    dealers: dealers.map(d => ({ value: d.slug, label: d.name, count: d._count.listings })),
-  };
-}
+    return {
+      brands: brands.map(b => ({ value: b.brand, count: b._count })),
+      styles: styles.map(s => ({ value: s.style!, count: s._count })),
+      movements: movements.map(m => ({ value: m.movementType!, count: m._count })),
+      conditions: conditions.map(c => ({ value: c.condition!, count: c._count })),
+      dealers: dealers.map(d => ({ value: d.slug, label: d.name, count: d._count.listings })),
+    };
+  },
+  ['filter-options'],
+  { revalidate: 3600, tags: ['filter-options'] }
+);
 
 // Listings with at least one real engagement signal, ordered by social rank.
 // Used for the homepage "Popular right now" section.

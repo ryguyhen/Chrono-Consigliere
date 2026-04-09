@@ -8,6 +8,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { WatchRollActions } from '@/components/watches/WatchRollActions';
 import { decodeHtmlEntities, formatPrice } from '@/lib/format';
+import { CONDITION_LABELS, MOVEMENT_LABELS, STYLE_LABELS } from '@/lib/constants';
 
 // DISCLAIMER: This page links to the original dealer website for purchase.
 // Chrono Consigliere is not a seller.
@@ -24,11 +25,6 @@ export async function generateMetadata({ params }: PageProps) {
   };
 }
 
-const CONDITION_LABEL: Record<string, string> = {
-  UNWORN: 'Unworn', MINT: 'Mint', EXCELLENT: 'Excellent',
-  VERY_GOOD: 'Very Good', GOOD: 'Good', FAIR: 'Fair',
-};
-
 export default async function WatchDetailPage({ params }: PageProps) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
@@ -36,7 +32,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
 
   if (!watch || !watch.isAvailable) notFound();
 
-  // Get friend likes if logged in
+  // Get friend likes if logged in — two queries but kept separate for clarity
   let friendLikes: { username: string; displayName: string | null }[] = [];
   if (userId) {
     const following = await prisma.follow.findMany({
@@ -61,6 +57,9 @@ export default async function WatchDetailPage({ params }: PageProps) {
   const primaryImage = watch.images?.[0];
   const allImages = watch.images;
   const displayTitle = decodeHtmlEntities(watch.model || watch.sourceTitle);
+  const conditionLabel = watch.condition ? (CONDITION_LABELS[watch.condition] ?? watch.condition) : null;
+  const movementLabel = watch.movementType ? (MOVEMENT_LABELS[watch.movementType] ?? watch.movementType) : null;
+  const styleLabel = watch.style ? (STYLE_LABELS[watch.style] ?? watch.style) : null;
 
   return (
     <div>
@@ -118,15 +117,16 @@ export default async function WatchDetailPage({ params }: PageProps) {
           <div className="text-[11px] font-medium tracking-[0.14em] uppercase text-gold mb-1.5">{watch.brand}</div>
           <h1 className="text-[1.8rem] font-semibold leading-tight tracking-[-0.03em] mb-2">{displayTitle}</h1>
           {watch.reference && (
-            <div className="font-mono text-[12px] text-muted mb-5">Ref. {watch.reference}{watch.year ? ` · ${watch.year}` : ''}</div>
+            <div className="font-mono text-[12px] text-muted mb-5">
+              Ref. {watch.reference}{watch.year ? ` · ${watch.year}` : ''}
+            </div>
           )}
 
-          {/* Price */}
+          {/* Price + availability */}
           <div className="text-[2.2rem] font-semibold tracking-[-0.03em] mb-1">{price}</div>
           <div className="flex items-center gap-1.5 text-[12px] text-[var(--success)] font-medium mb-5">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] inline-block" />
-            In Stock
-            {watch.condition && ` — ${CONDITION_LABEL[watch.condition] ?? watch.condition}`}
+            In stock{conditionLabel && ` — ${conditionLabel}`}
           </div>
 
           {/* Friend social proof */}
@@ -134,7 +134,11 @@ export default async function WatchDetailPage({ params }: PageProps) {
             <div className="flex items-center gap-2.5 p-3 bg-gold/[0.07] border border-gold/20 rounded mb-5 text-[12px]">
               <div className="flex">
                 {friendLikes.slice(0, 3).map((f, i) => (
-                  <div key={f.username} className="w-6 h-6 rounded-full bg-gold text-black text-[8px] flex items-center justify-center font-bold border-2 border-surface" style={{ marginLeft: i > 0 ? '-6px' : 0 }}>
+                  <div
+                    key={f.username}
+                    className="w-6 h-6 rounded-full bg-gold text-black text-[8px] flex items-center justify-center font-bold border-2 border-surface"
+                    style={{ marginLeft: i > 0 ? '-6px' : 0 }}
+                  >
                     {(f.displayName ?? f.username)[0].toUpperCase()}
                   </div>
                 ))}
@@ -168,10 +172,10 @@ export default async function WatchDetailPage({ params }: PageProps) {
             {[
               ['Case size', watch.caseSizeMm ? `${watch.caseSizeMm}mm` : null],
               ['Material', watch.caseMaterial],
-              ['Movement', watch.movementType ? { AUTOMATIC: 'Automatic', MANUAL: 'Manual Wind', QUARTZ: 'Quartz', SPRINGDRIVE: 'Spring Drive' }[watch.movementType] : null],
-              ['Style', watch.style?.replace('_', ' ')],
+              ['Movement', movementLabel],
+              ['Style', styleLabel],
               ['Year', watch.year?.toString()],
-              ['Condition', watch.condition ? CONDITION_LABEL[watch.condition] : null],
+              ['Condition', conditionLabel],
               ['Dial', watch.dialColor],
               ['Currency', watch.currency],
             ].filter(([, v]) => v).map(([label, value]) => (
@@ -192,26 +196,24 @@ export default async function WatchDetailPage({ params }: PageProps) {
 
           {/* Source + disclaimer */}
           <div className="border-t border-[var(--border)] pt-4 mt-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.1em] text-muted mb-0.5">Source</div>
-                <div className="text-[13px] font-medium text-ink">{watch.source.name}</div>
-                <a href={watch.source.baseUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] text-muted hover:text-gold font-mono">
-                  {watch.source.baseUrl.replace('https://', '')}
-                </a>
-              </div>
-              <span className="flex items-center gap-1 text-[11px] text-[var(--success)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" />
-                In stock
-              </span>
+            <div className="mb-3">
+              <div className="text-[10px] uppercase tracking-[0.1em] text-muted mb-0.5">Source</div>
+              <div className="text-[13px] font-medium text-ink">{watch.source.name}</div>
+              <a
+                href={watch.source.baseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-muted hover:text-gold font-mono"
+              >
+                {watch.source.baseUrl.replace('https://', '')}
+              </a>
             </div>
             <p className="text-[10px] text-muted/60 italic leading-relaxed">
-              Purchases are completed directly on {watch.source.name}'s website.
+              Purchases are completed directly on {watch.source.name}&apos;s website.
               Chrono Consigliere is a discovery layer — we are not a seller and make
               no warranties about listing accuracy or current availability.
             </p>
           </div>
-
         </div>
       </div>
     </div>

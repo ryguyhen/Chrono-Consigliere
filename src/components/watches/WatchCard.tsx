@@ -5,21 +5,13 @@ import Image from 'next/image';
 import { useState } from 'react';
 import type { WatchWithRelations } from '@/types';
 import { decodeHtmlEntities, formatPrice } from '@/lib/format';
+import { CONDITION_LABELS_SHORT } from '@/lib/constants';
 
 interface WatchCardProps {
   watch: WatchWithRelations;
   onSave?: (id: string, saved: boolean) => void;
   priority?: boolean;
 }
-
-const CONDITION_LABEL: Record<string, string> = {
-  UNWORN: 'Unworn',
-  MINT: 'Mint',
-  EXCELLENT: 'Excellent',
-  VERY_GOOD: 'V. Good',
-  GOOD: 'Good',
-  FAIR: 'Fair',
-};
 
 export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
   const [saved, setSaved] = useState(watch.isSaved ?? false);
@@ -86,10 +78,10 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
           </button>
         )}
 
-        {/* Condition badge */}
+        {/* Condition badge — shown for anything above VERY_GOOD (notable) or below GOOD (notable) */}
         {watch.condition && watch.condition !== 'GOOD' && watch.condition !== 'VERY_GOOD' && (
           <div className="absolute bottom-3 left-3 font-mono text-[8px] tracking-[0.1em] uppercase px-2 py-0.5 bg-black/75 text-white/75 rounded-sm">
-            {CONDITION_LABEL[watch.condition]}
+            {CONDITION_LABELS_SHORT[watch.condition] ?? watch.condition}
           </div>
         )}
       </div>
