@@ -20,7 +20,8 @@
     "postinstall": "prisma generate",
     "scrape:run": "ts-node scripts/run-scrape.ts",
     "scrape:all": "ts-node scripts/run-all-scrapers.ts",
-    "worker": "ts-node src/lib/queue/worker.ts"
+    "worker": "ts-node src/lib/queue/worker.ts",
+    "scrape:cron": "ts-node --project tsconfig.scripts.json scripts/scrape-direct.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.0.0",
@@ -46,6 +47,7 @@
     "prisma": "^5.10.0",
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
   },
   "prisma": {
