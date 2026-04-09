@@ -95,49 +95,91 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
   }
 
   /**
-   * Fetch a single URL, retrying only on 429 / 5xx (not 404/403).
-   * Returns null if the endpoint should be skipped (404/403/non-JSON).
+   * Fetch a single page of products, retrying on 429/5xx and transient network errors.
+   * Returns:
+   *   ShopifyProduct[] — success
+   *   'skip'           — non-retryable failure (404/403/HTML); caller tries fallback endpoint
+   *   null             — hard failure after all retries; caller stops this source
+   *
+   * Guarantees: never throws. All network exceptions are caught here and logged
+   * with the exact URL and error category so Railway logs show the real cause.
    */
   private async fetchProductsPage(url: string): Promise<ShopifyProduct[] | null | 'skip'> {
-    const RETRY_STATUSES = new Set([429, 500, 502, 503, 504]);
+    const RETRY_HTTP  = new Set([429, 500, 502, 503, 504]);
     const MAX_ATTEMPTS = 3;
+    const TIMEOUT_MS   = 30_000; // 30s — prevents a hanging source from blocking the whole run
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-        },
-      });
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort('timeout'), TIMEOUT_MS);
 
-      // Non-retryable failures — signal caller to try fallback or abort
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+          },
+        });
+        clearTimeout(timeoutId);
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+
+        // Classify the underlying network error so logs are actionable
+        const cause   = err.cause ?? {};
+        const code    = cause.code ?? err.code ?? '';
+        const isAbort = err.name === 'AbortError' || String(code).includes('ABORT');
+        let category: string;
+        if (isAbort)                           category = `TIMEOUT(${TIMEOUT_MS / 1000}s)`;
+        else if (code === 'ENOTFOUND')         category = 'DNS_FAILURE';
+        else if (code === 'ECONNREFUSED')      category = 'CONN_REFUSED';
+        else if (code === 'ECONNRESET')        category = 'CONN_RESET';
+        else if (code === 'ETIMEDOUT')         category = 'CONN_TIMEOUT';
+        else if (String(code).startsWith('ERR_SSL') ||
+                 String(code).startsWith('UND_ERR_TLS')) category = `SSL_ERROR(${code})`;
+        else                                   category = `NETWORK_ERROR(${code || (err.message ?? 'unknown')})`;
+
+        if (attempt < MAX_ATTEMPTS) {
+          const backoff = attempt * 3000;
+          this.log('warn', `${category} on attempt ${attempt}/${MAX_ATTEMPTS} for ${url} — retrying in ${backoff}ms`);
+          await this.delay(backoff);
+          continue;
+        }
+        this.log('error', `${category} for ${url} — giving up after ${MAX_ATTEMPTS} attempts`);
+        return null;
+      }
+
+      // ── HTTP-level handling ───────────────────────────────────────
+
+      // Non-retryable: caller tries the fallback endpoint (root /products.json)
       if (res.status === 404 || res.status === 403) {
-        this.log('warn', `${res.status} from ${url} — skipping endpoint`);
+        this.log('warn', `HTTP ${res.status} from ${url} — skipping endpoint`);
         return 'skip';
       }
 
-      if (RETRY_STATUSES.has(res.status)) {
+      if (RETRY_HTTP.has(res.status)) {
         if (attempt === MAX_ATTEMPTS) {
-          this.log('error', `HTTP ${res.status} after ${MAX_ATTEMPTS} attempts for ${url}`);
+          this.log('error', `HTTP ${res.status} from ${url} after ${MAX_ATTEMPTS} attempts — giving up`);
           return null;
         }
         const backoff = attempt * 2000 + Math.random() * 1000;
-        this.log('warn', `HTTP ${res.status}, retrying in ${Math.round(backoff)}ms (attempt ${attempt}/${MAX_ATTEMPTS})`);
+        this.log('warn', `HTTP ${res.status} from ${url} — retrying in ${Math.round(backoff)}ms (attempt ${attempt}/${MAX_ATTEMPTS})`);
         await this.delay(backoff);
         continue;
       }
 
       if (!res.ok) {
-        this.log('error', `HTTP ${res.status} for ${url}`);
-        return null;
+        this.log('error', `HTTP ${res.status} from ${url} — non-retryable, skipping`);
+        return 'skip';
       }
 
       // Detect HTML bot-protection pages before attempting JSON.parse
       const contentType = res.headers.get('content-type') ?? '';
       if (contentType.includes('text/html')) {
-        this.log('warn', `HTML response (bot protection?) from ${url} — skipping endpoint`);
+        this.log('warn', `HTML response (bot protection / login wall?) from ${url}`);
         return 'skip';
       }
 
@@ -146,12 +188,11 @@ export abstract class ShopifyBaseAdapter extends BaseAdapter {
         const json = JSON.parse(text) as { products: ShopifyProduct[] };
         return json.products ?? [];
       } catch {
-        // Check if it looks like HTML even without the content-type header
         if (text.trimStart().startsWith('<')) {
-          this.log('warn', `HTML body (no JSON header) from ${url} — skipping endpoint`);
+          this.log('warn', `HTML body (no JSON content-type) from ${url} — likely bot protection`);
           return 'skip';
         }
-        this.log('error', `JSON parse failed for ${url}: ${text.slice(0, 120)}`);
+        this.log('error', `JSON parse failed for ${url}: ${text.slice(0, 200)}`);
         return null;
       }
     }

@@ -156,8 +156,15 @@ export async function runScrapeJob(sourceId: string): Promise<ScrapeJobSummary> 
     };
 
   } catch (err: any) {
-    await failJob(job.id, err.message);
-    return { sourceId, status: 'FAILED', listingsFound: 0, listingsNew: 0, listingsRemoved: 0, errors: [err.message] };
+    // Include err.cause so network errors like ENOTFOUND/ETIMEDOUT appear in the DB
+    // rather than the opaque "fetch failed" message from Node's undici.
+    const cause = err.cause;
+    const causeDetail = cause
+      ? ` [cause: ${cause.code ?? cause.message ?? String(cause)}]`
+      : '';
+    const message = `${err.message ?? 'unknown error'}${causeDetail}`;
+    await failJob(job.id, message);
+    return { sourceId, status: 'FAILED', listingsFound: 0, listingsNew: 0, listingsRemoved: 0, errors: [message] };
   }
 }
 

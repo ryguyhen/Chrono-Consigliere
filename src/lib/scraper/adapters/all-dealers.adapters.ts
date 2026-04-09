@@ -631,6 +631,16 @@ export class ThillierTimeAdapter extends SquarespaceBaseAdapter {
 // ─────────────────────────────────────────────────────────────
 // 18. DANNY'S VINTAGE WATCHES [Shopify] — New York
 //     URL: dannysvintagewatches.com
+//
+//     Note: This source has been logging "fetch failed" on Railway —
+//     likely DNS_FAILURE or SSL_ERROR (site may be down / domain changed).
+//     With improved error handling the next run will log the exact cause.
+//     If DNS_FAILURE persists across multiple runs, disable the DB record
+//     until the domain is confirmed live.
+//
+//     Collection handle was verified at time of adapter creation; if the
+//     collection returns 404 the adapter automatically falls back to
+//     /products.json — so a stale handle is not the root cause here.
 // ─────────────────────────────────────────────────────────────
 export class DannysVintageWatchesAdapter extends ShopifyBaseAdapter {
   constructor() {
