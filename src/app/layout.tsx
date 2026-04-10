@@ -35,7 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={dmMono.variable}>
       <body className="bg-cream text-ink font-sans antialiased">
-        <Providers>
+        <Providers session={session}>
           <Nav session={session} />
           <main className="pb-14 md:pb-0">{children}</main>
         </Providers>

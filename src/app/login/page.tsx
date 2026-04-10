@@ -32,12 +32,18 @@ const ACTION_CONTEXT: Record<string, string> = {
   owned: 'Create an account to track watches you own.',
 };
 
+// Block absolute URLs and protocol-relative paths to prevent open redirect.
+function safeRedirectPath(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/';
+  return raw;
+}
+
 function LoginForm() {
   const { data: session } = useSession();
   const router = useRouter();
   const params = useSearchParams();
 
-  const from = params.get('from') ?? '/';
+  const from = safeRedirectPath(params.get('from'));
   const action = params.get('action') ?? '';
   const actionContext = ACTION_CONTEXT[action] ?? null;
 

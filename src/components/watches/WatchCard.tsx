@@ -29,7 +29,9 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
     e.preventDefault();
     if (isOwned) return;
     if (status === 'unauthenticated') {
-      router.push(`/login?from=${encodeURIComponent(pathname)}&action=save`);
+      // Include query string so filtered browse URLs are fully preserved after login.
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      router.push(`/login?from=${encodeURIComponent(pathname + search)}&action=save`);
       return;
     }
     const next = !saved;
