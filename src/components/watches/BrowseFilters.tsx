@@ -5,7 +5,7 @@ import { useCallback, useState } from 'react';
 
 interface FilterOption { value: string; count: number; label?: string; }
 
-interface BrowseFiltersProps {
+interface FilterOptions {
   brands: FilterOption[];
   styles: FilterOption[];
   movements: FilterOption[];
@@ -28,10 +28,11 @@ const MOVEMENT_LABELS: Record<string, string> = {
   AUTOMATIC: 'Automatic', MANUAL: 'Manual Wind', QUARTZ: 'Quartz', SPRINGDRIVE: 'Spring Drive',
 };
 
-export function BrowseFilters({ brands, styles, movements, conditions, dealers }: BrowseFiltersProps) {
+// ─── Shared hook ──────────────────────────────────────────────────────────────
+
+function useFilterState() {
   const router = useRouter();
   const params = useSearchParams();
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const updateParam = useCallback((key: string, value: string) => {
     const next = new URLSearchParams(params.toString());
@@ -52,6 +53,25 @@ export function BrowseFilters({ brands, styles, movements, conditions, dealers }
     (sum, key) => sum + params.getAll(key).length, 0
   ) + (params.get('minPrice') ? 1 : 0) + (params.get('maxPrice') ? 1 : 0);
 
+  const minPrice = params.get('minPrice') ?? '';
+  const maxPrice = params.get('maxPrice') ?? '';
+
+  function updatePrice(key: 'minPrice' | 'maxPrice', val: string) {
+    const next = new URLSearchParams(params.toString());
+    if (val) next.set(key, val); else next.delete(key);
+    next.delete('page');
+    router.push(`/browse?${next.toString()}`);
+  }
+
+  return { updateParam, isActive, activeCount, minPrice, maxPrice, updatePrice };
+}
+
+// ─── Shared filter panel content ───────────────────────────────────────────────
+
+function FilterPanelContent({
+  brands, styles, movements, conditions, dealers,
+  updateParam, isActive, minPrice, maxPrice, updatePrice,
+}: FilterOptions & ReturnType<typeof useFilterState>) {
   function FilterSection({ title, items, paramKey, labelMap }: {
     title: string;
     items: FilterOption[];
@@ -88,17 +108,7 @@ export function BrowseFilters({ brands, styles, movements, conditions, dealers }
     );
   }
 
-  const minPrice = params.get('minPrice') ?? '';
-  const maxPrice = params.get('maxPrice') ?? '';
-
-  function updatePrice(key: 'minPrice' | 'maxPrice', val: string) {
-    const next = new URLSearchParams(params.toString());
-    if (val) next.set(key, val); else next.delete(key);
-    next.delete('page');
-    router.push(`/browse?${next.toString()}`);
-  }
-
-  const filterContent = (
+  return (
     <>
       <FilterSection title="Brand" items={brands} paramKey="brand" />
       <FilterSection title="Style" items={styles} paramKey="style" labelMap={STYLE_LABELS} />
@@ -126,57 +136,99 @@ export function BrowseFilters({ brands, styles, movements, conditions, dealers }
       </div>
       <FilterSection title="Movement" items={movements} paramKey="movement" labelMap={MOVEMENT_LABELS} />
       <FilterSection title="Condition" items={conditions} paramKey="condition" labelMap={CONDITION_LABELS} />
-      <FilterSection title="Dealer" items={dealers.map(d => ({ ...d, label: d.label }))} paramKey="dealer" />
+      <FilterSection title="Dealer" items={dealers} paramKey="dealer" />
     </>
   );
+}
+
+// ─── Desktop sidebar ───────────────────────────────────────────────────────────
+
+export function BrowseFilters(props: FilterOptions) {
+  const filterState = useFilterState();
+
+  return (
+    <aside className="hidden md:block w-[200px] flex-shrink-0 bg-surface border-r border-[var(--border)] h-[calc(100vh-52px)] sticky top-[52px] overflow-y-auto px-5 py-6">
+      <FilterPanelContent {...props} {...filterState} />
+    </aside>
+  );
+}
+
+// ─── Mobile filter button (inline in header) + bottom sheet ───────────────────
+
+export function MobileFilterButton(props: FilterOptions) {
+  const [open, setOpen] = useState(false);
+  const filterState = useFilterState();
+  const { activeCount } = filterState;
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden md:block w-[200px] flex-shrink-0 bg-surface border-r border-[var(--border)] h-[calc(100vh-52px)] sticky top-[52px] overflow-y-auto px-5 py-6">
-        {filterContent}
-      </aside>
-
-      {/* Mobile filter button — shown in the browse search bar via absolute positioning */}
+      {/* Trigger — rendered inline in the search bar row */}
       <button
-        onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed bottom-[72px] right-4 z-40 flex items-center gap-1.5 bg-surface border border-[var(--border)] rounded-full px-4 py-2.5 text-[12px] font-medium text-ink shadow-xl"
-        style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom, 0px))' }}
+        onClick={() => setOpen(true)}
+        aria-label="Open filters"
+        className="md:hidden flex items-center gap-1.5 px-3 py-2 text-[12px] border border-[var(--border)] rounded bg-parchment text-ink whitespace-nowrap"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
           <line x1="4" y1="6" x2="20" y2="6" />
           <line x1="8" y1="12" x2="16" y2="12" />
           <line x1="11" y1="18" x2="13" y2="18" />
         </svg>
         Filters
         {activeCount > 0 && (
-          <span className="bg-gold text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+          <span className="bg-gold text-black text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
             {activeCount}
           </span>
         )}
       </button>
 
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-[60] flex justify-end">
+      {/* Bottom sheet */}
+      {open && (
+        <div className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end">
+          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/70"
-            onClick={() => setMobileOpen(false)}
+            onClick={() => setOpen(false)}
           />
-          <div className="relative w-[300px] max-w-[85vw] h-full bg-surface overflow-y-auto px-5 pt-6"
-            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
+
+          {/* Sheet */}
+          <div
+            className="relative bg-surface rounded-t-2xl flex flex-col"
+            style={{ maxHeight: '80vh' }}
           >
-            <div className="flex justify-between items-center mb-6">
+            {/* Handle */}
+            <div className="flex justify-center pt-4 pb-0 flex-shrink-0">
+              <div className="w-10 h-1 rounded-full bg-ink/15" />
+            </div>
+
+            {/* Header */}
+            <div className="flex justify-between items-center px-5 pt-4 pb-3 flex-shrink-0">
               <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Filters</span>
               <button
-                onClick={() => setMobileOpen(false)}
+                onClick={() => setOpen(false)}
                 aria-label="Close filters"
-                className="w-11 h-11 flex items-center justify-center text-muted hover:text-ink text-xl leading-none"
+                className="w-10 h-10 flex items-center justify-center text-muted hover:text-ink text-xl leading-none -mr-2"
               >
                 <span aria-hidden="true">×</span>
               </button>
             </div>
-            {filterContent}
+
+            {/* Scrollable filter content */}
+            <div className="overflow-y-auto flex-1 px-5 pb-4">
+              <FilterPanelContent {...props} {...filterState} />
+            </div>
+
+            {/* Sticky done button */}
+            <div
+              className="flex-shrink-0 px-5 pt-3 border-t border-[var(--border)] bg-surface"
+              style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+            >
+              <button
+                onClick={() => setOpen(false)}
+                className="w-full py-3 bg-gold text-black font-mono text-[10px] tracking-[0.12em] uppercase font-bold rounded"
+              >
+                Done{activeCount > 0 ? ` · ${activeCount} active` : ''}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -486,7 +486,25 @@ export class CollectorsCornerNYAdapter extends ShopifyBaseAdapter {
       sourceName: 'Collectors Corner NY',
       baseUrl: 'https://www.collectorscornerny.com',
       watchCollectionHandle: 'all',
-      nonWatchTags: ['strap', 'accessory', 'parts', 'book'],
+      nonWatchTags: [
+        'parts',
+        'jewelry', 'jewellery', 'fine jewelry',
+        'necklace', 'cufflinks', 'pendant',
+        'glasses', 'sunglasses', 'eyewear',
+      ],
+      excludeProductTypes: [
+        'jewelry', 'jewellery',
+        'fine jewelry', 'fashion jewelry',
+        'watch strap', 'strap',
+        'watch winder', 'winder',
+      ],
+      excludeTitleTerms: [
+        'watch strap', 'nato strap', 'rubber strap', 'leather strap', 'nylon strap',
+        'watch winder', 'winder',
+        'jewelry', 'jewellery',
+        'necklace', 'cufflinks',
+        'sunglasses', 'glasses',
+      ],
       rateLimit: 2000,
     });
   }

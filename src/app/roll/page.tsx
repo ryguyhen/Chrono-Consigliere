@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
 import { prisma } from '@/lib/db';
 import { WatchCard } from '@/components/watches/WatchCard';
+import { UnavailableWatchCard } from '@/components/watches/UnavailableWatchCard';
 import Link from 'next/link';
 import type { WatchWithRelations } from '@/types';
 
@@ -52,38 +53,38 @@ export default async function RollPage({ searchParams }: PageProps) {
 
   return (
     <div>
-      {/* Header */}
-      <div className="bg-black border-b border-white/[0.07] px-4 sm:px-6 py-5 sm:py-7">
-        <div className="max-w-[1040px] mx-auto">
-          <h1 className="text-[1.5rem] sm:text-[1.8rem] font-semibold tracking-[-0.03em]">Roll</h1>
+      {/* Combined header + tabs — h1 suppressed on mobile (bottom nav labels this "Roll") */}
+      <div className="border-b border-[var(--border)]">
+        <div className="max-w-[1040px] mx-auto px-4 sm:px-6">
+          <h1 className="hidden md:block text-[1.4rem] font-semibold tracking-[-0.03em] pt-5 pb-3">
+            Roll
+          </h1>
+          <div className="flex">
+            <Link
+              href="/roll"
+              className={`px-4 py-3.5 text-[11px] font-mono tracking-[0.1em] uppercase border-b-2 transition-colors
+                ${activeTab === 'favorites'
+                  ? 'border-gold text-gold'
+                  : 'border-transparent text-muted hover:text-ink'}`}
+            >
+              Favorites {favoritesCount > 0 && <span className="ml-1 opacity-60">({favoritesCount})</span>}
+            </Link>
+            <Link
+              href="/roll?tab=owned"
+              className={`px-4 py-3.5 text-[11px] font-mono tracking-[0.1em] uppercase border-b-2 transition-colors
+                ${activeTab === 'owned'
+                  ? 'border-gold text-gold'
+                  : 'border-transparent text-muted hover:text-ink'}`}
+            >
+              Owned {ownedCount > 0 && <span className="ml-1 opacity-60">({ownedCount})</span>}
+            </Link>
+          </div>
         </div>
-      </div>
-
-      {/* Favorites / Owned tabs */}
-      <div className="border-b border-[var(--border)] px-4 sm:px-6 flex gap-0">
-        <Link
-          href="/roll"
-          className={`px-4 py-3.5 text-[11px] font-mono tracking-[0.1em] uppercase border-b-2 transition-colors
-            ${activeTab === 'favorites'
-              ? 'border-gold text-gold'
-              : 'border-transparent text-muted hover:text-ink'}`}
-        >
-          Favorites {favoritesCount > 0 && <span className="ml-1 opacity-60">({favoritesCount})</span>}
-        </Link>
-        <Link
-          href="/roll?tab=owned"
-          className={`px-4 py-3.5 text-[11px] font-mono tracking-[0.1em] uppercase border-b-2 transition-colors
-            ${activeTab === 'owned'
-              ? 'border-gold text-gold'
-              : 'border-transparent text-muted hover:text-ink'}`}
-        >
-          Owned {ownedCount > 0 && <span className="ml-1 opacity-60">({ownedCount})</span>}
-        </Link>
       </div>
 
       {/* Collection filter — Favorites tab only */}
       {activeTab === 'favorites' && collections.length > 0 && (
-        <div className="border-b border-[var(--border)] px-6 py-3 flex gap-2 overflow-x-auto">
+        <div className="border-b border-[var(--border)] px-6 py-3 flex gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
           <Link
             href="/roll"
             className={`px-3.5 py-1.5 rounded-full font-mono text-[10px] tracking-[0.06em] border whitespace-nowrap transition-colors
@@ -105,9 +106,6 @@ export default async function RollPage({ searchParams }: PageProps) {
               {col.name} ({col._count.items})
             </Link>
           ))}
-          <button className="px-3.5 py-1.5 rounded-full font-mono text-[10px] tracking-[0.06em] border border-dashed border-[var(--border)] text-muted hover:border-gold/50 hover:text-gold transition-colors whitespace-nowrap">
-            + New list
-          </button>
         </div>
       )}
 
@@ -116,11 +114,18 @@ export default async function RollPage({ searchParams }: PageProps) {
         {saves.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-5">
             {saves.map((s, i) => (
-              <WatchCard
-                key={s.id}
-                watch={{ ...s.listing, isLiked: false, isSaved: activeTab === 'favorites', isOwned: activeTab === 'owned', friendLikes: [] } as WatchWithRelations}
-                priority={i < 6}
-              />
+              s.listing.isAvailable
+                ? <WatchCard
+                    key={s.id}
+                    watch={{ ...s.listing, isLiked: false, isSaved: activeTab === 'favorites', isOwned: activeTab === 'owned', friendLikes: [] } as WatchWithRelations}
+                    priority={i < 6}
+                  />
+                : <UnavailableWatchCard
+                    key={s.id}
+                    listingId={s.listing.id}
+                    brand={s.listing.brand}
+                    title={s.listing.model || s.listing.sourceTitle}
+                  />
             ))}
           </div>
         ) : (

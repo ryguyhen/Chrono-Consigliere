@@ -40,6 +40,21 @@ export function timeAgo(date: Date): string {
   return `${Math.floor(seconds / 86400)}d`;
 }
 
+/**
+ * Human-readable relative time for dates, suitable for listing age ("Added 3 days ago").
+ * Uses longer form than timeAgo for readability in prose contexts.
+ */
+export function timeAgoLong(date: Date): string {
+  const days = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24));
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return 'last week';
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  if (days < 365) return `${Math.floor(days / 30)} months ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
 export function decodeHtmlEntities(text: string): string {
   return text
     // Named entities first

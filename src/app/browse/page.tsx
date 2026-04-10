@@ -5,7 +5,7 @@ import { getWatches, getFilterOptions } from '@/lib/watches/queries';
 import { parseBrowseFilters, hasActiveFilters, buildPageUrl } from '@/lib/watches/filters';
 import { Suspense } from 'react';
 import { WatchCard } from '@/components/watches/WatchCard';
-import { BrowseFilters } from '@/components/watches/BrowseFilters';
+import { BrowseFilters, MobileFilterButton } from '@/components/watches/BrowseFilters';
 import { SortSelect } from '@/components/watches/SortSelect';
 import Link from 'next/link';
 
@@ -19,10 +19,12 @@ export default async function BrowsePage({ searchParams }: PageProps) {
 
   const filters = parseBrowseFilters(searchParams);
 
-  const [{ watches, total, hasMore, page }, filterOptions] = await Promise.all([
+  const [{ watches, total, hasMore, page, pageSize }, filterOptions] = await Promise.all([
     getWatches(filters, userId),
     getFilterOptions(),
   ]);
+
+  const totalPages = Math.ceil(total / pageSize);
 
   const hasFilters = hasActiveFilters(filters);
 
@@ -35,7 +37,17 @@ export default async function BrowsePage({ searchParams }: PageProps) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Search + Sort bar */}
         <div className="bg-surface border-b border-[var(--border)] px-4 sm:px-6 py-3 flex flex-wrap gap-2 sm:gap-3 items-center">
+          {/* Hidden inputs preserve active filters when a new search is submitted.
+              Without these, a GET form submission replaces the entire query string. */}
           <form className="flex-1 min-w-[160px]" action="/browse" method="GET">
+            {filters.brand?.map(v => <input key={v} type="hidden" name="brand" value={v} />)}
+            {filters.style?.map(v => <input key={v} type="hidden" name="style" value={v} />)}
+            {filters.movement?.map(v => <input key={v} type="hidden" name="movement" value={v} />)}
+            {filters.condition?.map(v => <input key={v} type="hidden" name="condition" value={v} />)}
+            {filters.dealer?.map(v => <input key={v} type="hidden" name="dealer" value={v} />)}
+            {filters.sort && filters.sort !== 'newest' && <input type="hidden" name="sort" value={filters.sort} />}
+            {filters.minPrice && <input type="hidden" name="minPrice" value={filters.minPrice} />}
+            {filters.maxPrice && <input type="hidden" name="maxPrice" value={filters.maxPrice} />}
             <input
               name="q"
               defaultValue={filters.q}
@@ -43,6 +55,9 @@ export default async function BrowsePage({ searchParams }: PageProps) {
               className="w-full px-3 py-2 text-[13px] border border-[var(--border)] rounded bg-cream text-ink outline-none focus:border-gold"
             />
           </form>
+          <Suspense fallback={null}>
+            <MobileFilterButton {...filterOptions} />
+          </Suspense>
           <div className="flex items-center gap-2">
             <SortSelect defaultValue={filters.sort ?? 'newest'} />
             <span className="font-mono text-[11px] text-muted whitespace-nowrap">
@@ -76,23 +91,29 @@ export default async function BrowsePage({ searchParams }: PageProps) {
 
         {/* Pagination */}
         {(hasMore || page > 1) && (
-          <div className="flex justify-center items-center gap-4 py-10 border-t border-[var(--border)]">
-            {page > 1 && (
+          <div className="flex justify-center items-center gap-3 py-10 border-t border-[var(--border)]">
+            {page > 1 ? (
               <Link
                 href={buildPageUrl(filters, page - 1)}
-                className="font-mono text-[10px] tracking-[0.1em] uppercase px-4 py-2 border border-[var(--border)] rounded hover:border-gold text-muted hover:text-gold transition-colors"
+                className="font-mono text-[10px] tracking-[0.1em] uppercase px-4 py-2.5 border border-[var(--border)] rounded hover:border-gold text-muted hover:text-gold transition-colors"
               >
                 ← Prev
               </Link>
+            ) : (
+              <span className="font-mono text-[10px] px-4 py-2.5 text-muted/30 select-none">← Prev</span>
             )}
-            <span className="font-mono text-[10px] text-muted">{page}</span>
-            {hasMore && (
+            <span className="font-mono text-[10px] text-muted tabular-nums">
+              {page} / {totalPages}
+            </span>
+            {hasMore ? (
               <Link
                 href={buildPageUrl(filters, page + 1)}
-                className="font-mono text-[10px] tracking-[0.1em] uppercase px-4 py-2 border border-[var(--border)] rounded hover:border-gold text-muted hover:text-gold transition-colors"
+                className="font-mono text-[10px] tracking-[0.1em] uppercase px-4 py-2.5 border border-[var(--border)] rounded hover:border-gold text-muted hover:text-gold transition-colors"
               >
                 Next →
               </Link>
+            ) : (
+              <span className="font-mono text-[10px] px-4 py-2.5 text-muted/30 select-none">Next →</span>
             )}
           </div>
         )}

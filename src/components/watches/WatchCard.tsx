@@ -93,19 +93,27 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
         <div className="font-mono text-[9px] font-medium tracking-[0.14em] uppercase text-muted mb-1">
           {watch.brand}
         </div>
-        <div className="text-[14px] font-medium text-ink leading-snug mb-2 tracking-[-0.01em]">
+        <div className="text-[14px] font-medium text-ink leading-snug tracking-[-0.01em]">
           {displayTitle}
         </div>
+        {/* Case size — key comparison metric, shown when available */}
+        {watch.caseSizeMm && (
+          <div className="text-[11px] text-muted/60 mt-0.5 mb-1.5">{watch.caseSizeMm}mm</div>
+        )}
+        {!watch.caseSizeMm && <div className="mb-2" />}
 
         <div className="flex items-baseline justify-between">
           <div className="text-[15px] font-normal text-ink tracking-[-0.01em]">
             {formatPrice(watch.price, watch.currency)}
           </div>
-          {friendCount > 0 && (
+          {/* Social proof: friends override raw save count when present */}
+          {friendCount > 0 ? (
             <span className="text-[10px] text-gold font-mono">
               {friendCount === 1 ? 'In your circle' : `${friendCount} in circle`}
             </span>
-          )}
+          ) : (watch.saveCount ?? 0) > 5 ? (
+            <span className="text-[10px] text-muted/60 font-mono">{watch.saveCount} saved</span>
+          ) : null}
         </div>
       </div>
     </Link>

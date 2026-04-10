@@ -90,12 +90,13 @@ export async function getFeedForUser(userId: string, cursor?: string, limit = 20
   });
   const followingIds = following.map(f => f.followingId);
 
-  return prisma.activityFeedEvent.findMany({
+  // Fetch one extra to determine if there's a next page
+  const events = await prisma.activityFeedEvent.findMany({
     where: {
       actorId: { in: followingIds },
     },
     orderBy: { createdAt: 'desc' },
-    take: limit,
+    take: limit + 1,
     cursor: cursor ? { id: cursor } : undefined,
     skip: cursor ? 1 : 0,
     include: {
@@ -103,6 +104,12 @@ export async function getFeedForUser(userId: string, cursor?: string, limit = 20
       listing: { include: { images: { where: { isPrimary: true } }, source: true } },
     },
   });
+
+  const hasMore = events.length > limit;
+  const page = hasMore ? events.slice(0, limit) : events;
+  const nextCursor = hasMore ? page[page.length - 1].id : null;
+
+  return { events: page, nextCursor };
 }
 
 export async function getTasteOverlap(userId: string, friendId: string) {

@@ -36,10 +36,25 @@ export type WatchWithRelations = {
     isPrimary: boolean;
     altText: string | null;
   }[];
-  // Populated when fetched with user context
-  isLiked?: boolean;
-  isSaved?: boolean;
-  isOwned?: boolean;
+  /**
+   * User interaction state. `null` = viewer is unauthenticated (state unknown).
+   * `false` = authenticated but not liked/saved/owned.
+   * Populated by queries when a userId is provided; null otherwise.
+   */
+  isLiked: boolean | null;
+  isSaved: boolean | null;
+  /**
+   * `true` when the viewer has a WishlistItem with list=OWNED for this listing.
+   * Distinct from a PurchaseEvent (which records a specific transaction with price/date).
+   * null when unauthenticated.
+   */
+  isOwned: boolean | null;
+  /**
+   * Friends who have liked or saved this listing.
+   * NOTE: populated only on the watch detail page via an explicit join — never
+   * populated by getWatches() or getWatchById() without extra work.
+   * Always [] in browse/roll/profile contexts.
+   */
   friendLikes?: { userId: string; user: { profile: { username: string; displayName: string | null } | null } }[];
 };
 
@@ -93,7 +108,7 @@ export type BrowseFilters = {
   maxPrice?: number;
   minCase?: number;
   maxCase?: number;
-  sort?: 'newest' | 'price-asc' | 'price-desc' | 'most-liked' | 'friend-trending';
+  sort?: 'newest' | 'price-asc' | 'price-desc' | 'most-liked';
   page?: number;
 };
 

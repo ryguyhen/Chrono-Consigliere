@@ -1,41 +1,70 @@
 // src/app/page.tsx
+//
+// Route structure decision: `/` serves both public and authenticated surfaces.
+// This is the established app pattern (Instagram, Twitter, etc.) — the root IS
+// the authenticated home. Adding a /home redirect would add a round-trip on
+// every cold load and require session-aware hrefs in the static Nav component.
+//
+// The two render paths share zero code — an early return for auth users
+// means no marketing data is fetched and no acquisition copy is rendered.
 import Link from 'next/link';
+import Image from 'next/image';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/auth.config';
-import { getEngagedListings, getNewArrivals } from '@/lib/watches/queries';
+import { getEngagedListings, getNewArrivals, getWeeklyTrending } from '@/lib/watches/queries';
+import { getFeedForUser } from '@/lib/social/feed-service';
 import { WatchCard } from '@/components/watches/WatchCard';
 import { prisma } from '@/lib/db';
 import { Suspense } from 'react';
+import { formatPrice, timeAgo } from '@/lib/format';
 
-// Minimum engaged listings required to show the social section.
-// Below this threshold the section is hidden — no fake-popular inventory.
 const MIN_ENGAGED = 3;
 
-export default async function LandingPage() {
+const FEED_VERB: Record<string, string> = {
+  LIKED: 'liked',
+  SAVED: 'saved',
+  OWNED: 'owns',
+  PURCHASED: 'bought',
+  INFLUENCED_PURCHASE: 'bought after you saved it',
+  FOLLOWED: 'is now following someone',
+  ADDED_TO_COLLECTION: 'added to their roll',
+};
+
+export default async function RootPage() {
   const session = await getServerSession(authOptions);
 
-  // Only fetch what's needed above the fold: hero stats + ticker.
-  // Both queries must exclude disabled sources (same rule as all public listing queries).
+  if (session?.user) {
+    // ── Authenticated home ──────────────────────────────────────────────────
+    // Purpose-built for an existing collector. No marketing copy, no global
+    // popularity signals — personalized circle activity first, then discovery.
+    return (
+      <div>
+        <Suspense fallback={<CircleSectionSkeleton />}>
+          <CircleSection userId={session.user.id} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <PopularSection userId={session.user.id} />
+        </Suspense>
+        <Suspense fallback={null}>
+          <NewInPreview />
+        </Suspense>
+      </div>
+    );
+  }
+
+  // ── Public landing page ───────────────────────────────────────────────────
+  // Marketing data only fetched for unauthenticated visitors.
   const ACTIVE_LISTING = { isAvailable: true, source: { isActive: true } } as const;
 
   const [stats, dealerCount, recentTicker] = await Promise.all([
-    prisma.watchListing.aggregate({
-      where: ACTIVE_LISTING,
-      _count: { id: true },
-    }),
+    prisma.watchListing.aggregate({ where: ACTIVE_LISTING, _count: { id: true } }),
     prisma.dealerSource.count({ where: { isActive: true } }),
     prisma.watchListing.findMany({
-      where: {
-        ...ACTIVE_LISTING,
-        // Only ticker entries where brand is known — avoids "Just in: Unknown …" entries
-        brand: { not: 'Unknown' },
-      },
+      where: { ...ACTIVE_LISTING, brand: { not: 'Unknown' } },
       orderBy: { createdAt: 'desc' },
       take: 8,
       select: {
-        brand: true,
-        model: true,
-        sourceTitle: true,
+        brand: true, model: true, sourceTitle: true,
         source: { select: { name: true } },
       },
     }),
@@ -54,36 +83,23 @@ export default async function LandingPage() {
           <h1 className="text-[clamp(2.6rem,10vw,5.5rem)] font-semibold leading-[1.0] mb-4 sm:mb-5 tracking-[-0.04em]">
             Start your roll.
           </h1>
-          <p className="text-[14px] sm:text-[15px] text-white/50 max-w-[380px] sm:max-w-[420px] mx-auto mb-8 sm:mb-10 leading-relaxed font-normal">
+          <p className="text-[14px] sm:text-[15px] text-white/50 max-w-[420px] mx-auto mb-8 sm:mb-10 leading-relaxed font-normal">
             Build your watch box, follow your friends, and keep up with what&apos;s good.
           </p>
           <div className="flex gap-3 justify-center">
-            {!session ? (
-              <>
-                <Link
-                  href="/register"
-                  className="bg-gold text-black text-[11px] font-bold tracking-[0.1em] uppercase px-6 py-3.5 rounded hover:bg-gold-dark transition-colors"
-                >
-                  Start here
-                </Link>
-                <Link
-                  href="/browse"
-                  className="border border-white/15 text-white/60 text-[11px] font-medium tracking-[0.1em] uppercase px-6 py-3.5 rounded hover:border-gold/60 hover:text-gold transition-colors"
-                >
-                  Browse
-                </Link>
-              </>
-            ) : (
-              <Link
-                href="/browse"
-                className="bg-gold text-black text-[11px] font-bold tracking-[0.1em] uppercase px-6 py-3.5 rounded hover:bg-gold-dark transition-colors"
-              >
-                Browse watches
-              </Link>
-            )}
+            <Link
+              href="/register"
+              className="bg-gold text-black text-[11px] font-bold tracking-[0.1em] uppercase px-6 py-3.5 rounded hover:bg-gold-dark transition-colors"
+            >
+              Start here
+            </Link>
+            <Link
+              href="/browse"
+              className="border border-white/15 text-white/60 text-[11px] font-medium tracking-[0.1em] uppercase px-6 py-3.5 rounded hover:border-gold/60 hover:text-gold transition-colors"
+            >
+              Browse
+            </Link>
           </div>
-
-          {/* Stats */}
           <div className="flex justify-center gap-10 sm:gap-16 mt-12 sm:mt-20 pt-8 border-t border-white/[0.07]">
             {[
               [totalListings.toLocaleString(), 'In-stock watches'],
@@ -98,7 +114,7 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* RECENTLY ADDED TICKER */}
+      {/* TICKER */}
       {recentTicker.length > 0 && (
         <div className="bg-parchment border-b border-[var(--border)] py-3 px-4 overflow-x-hidden">
           <div className="flex gap-10 text-[11px] text-muted whitespace-nowrap">
@@ -114,18 +130,251 @@ export default async function LandingPage() {
         </div>
       )}
 
-      {/* POPULAR RIGHT NOW — streams in after hero */}
       <Suspense fallback={null}>
         <EngagedSection />
       </Suspense>
-
-      {/* NEW IN — streams in after hero */}
       <Suspense fallback={null}>
         <NewInSection />
       </Suspense>
     </div>
   );
 }
+
+// ─── Authenticated: circle activity ───────────────────────────────────────────
+// Shows recent feed events from people the collector follows.
+// Empty state nudges them to find people — discovery as a CTA, not just copy.
+
+function CircleSectionSkeleton() {
+  return (
+    <div className="px-4 sm:px-8 py-6 sm:py-10 max-w-[1200px] mx-auto">
+      <div className="h-6 w-40 bg-ink/5 rounded mb-5" />
+      <div className="space-y-4">
+        {[0, 1, 2].map(i => (
+          <div key={i} className="bg-parchment rounded-lg p-3 flex gap-3">
+            <div className="w-14 h-14 rounded bg-ink/5 flex-shrink-0" />
+            <div className="flex-1 space-y-2 py-1">
+              <div className="h-3 w-32 bg-ink/5 rounded" />
+              <div className="h-4 w-48 bg-ink/5 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function CircleSection({ userId }: { userId: string }) {
+  // Fetch 20 to improve odds of surfacing 3 listing events from a quiet circle.
+  const { events: allEvents } = await getFeedForUser(userId, undefined, 20);
+  const events = allEvents.filter((e: any) => e.listing).slice(0, 3);
+
+  // True empty: no circle at all — different from "circle exists, just quiet".
+  if (allEvents.length === 0) {
+    return (
+      <section className="px-4 sm:px-8 py-6 sm:py-10 max-w-[1200px] mx-auto">
+        <h2 className="text-[1.1rem] font-semibold tracking-[-0.02em] mb-4">
+          From your circle
+        </h2>
+        <div className="py-10 text-center border border-dashed border-[var(--border)] rounded-lg">
+          <div className="text-3xl mb-4 opacity-10">◈</div>
+          <div className="text-[1rem] font-semibold mb-2">Nobody in your circle yet</div>
+          <p className="text-[13px] text-muted mb-6 max-w-[280px] mx-auto leading-relaxed">
+            Follow collectors to see what they're saving and buying.
+          </p>
+          <Link
+            href="/friends?tab=people"
+            className="inline-block font-mono text-[10px] tracking-[0.12em] uppercase px-5 py-2.5 bg-gold text-black rounded font-bold hover:bg-gold-dark transition-colors"
+          >
+            Find collectors
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="px-4 sm:px-8 py-6 sm:py-10 max-w-[1200px] mx-auto">
+      {/* Header with freshness signal — shows age of most recent event */}
+      <div className="flex items-baseline gap-3 mb-4">
+        <h2 className="text-[1.1rem] font-semibold tracking-[-0.02em]">
+          From your circle
+        </h2>
+        {events.length > 0 && (
+          <span className="font-mono text-[9px] tracking-[0.08em] text-muted/60">
+            {timeAgo(new Date(events[0].createdAt))}
+          </span>
+        )}
+      </div>
+
+      {events.length === 0 ? (
+        // Circle exists but no listing events recently
+        <div className="py-8 text-center border border-dashed border-[var(--border)] rounded-lg">
+          <div className="text-[0.95rem] font-semibold mb-1.5">Your circle's been quiet</div>
+          <p className="text-[13px] text-muted mb-4 max-w-[260px] mx-auto leading-relaxed">
+            No new saves from your circle recently.
+          </p>
+          <Link
+            href="/friends"
+            className="font-mono text-[10px] tracking-[0.1em] uppercase text-gold hover:text-gold-dark transition-colors"
+          >
+            See all activity →
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-4 mb-3">
+            {events.map((event: any) => {
+              const actorName = event.actor.profile?.displayName ?? event.actor.name ?? 'Someone';
+              const actorUsername = event.actor.profile?.username;
+              const verb = FEED_VERB[event.type] ?? event.type.toLowerCase();
+              const initials = actorName.slice(0, 2).toUpperCase();
+              const hue = (initials.charCodeAt(0) * 37 + (initials.charCodeAt(1) || 0) * 13) % 360;
+
+              return (
+                <div key={event.id}>
+                  {/* Single link covering the whole actor row — 40px min-height for touch */}
+                  <Link
+                    href={`/profile/${actorUsername}`}
+                    className="flex items-center gap-2 mb-1.5 min-h-[40px] group/actor"
+                  >
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-white/70 font-medium text-[9px] flex-shrink-0"
+                      style={{ background: `hsl(${hue}, 18%, 22%)` }}
+                    >
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0 text-[12px] text-ink/60 truncate">
+                      <span className="text-ink font-medium group-hover/actor:text-gold transition-colors">
+                        {actorName}
+                      </span>
+                      {' '}{verb}
+                    </div>
+                    <span className="font-mono text-[9px] text-muted/50 flex-shrink-0">
+                      {timeAgo(new Date(event.createdAt))}
+                    </span>
+                  </Link>
+                  {/* Listing card — explicit border ensures contrast across themes */}
+                  <Link href={`/watch/${event.listing.id}`} className="flex gap-3 bg-parchment border border-[var(--border)] rounded-lg p-3 group">
+                    <div className="w-14 h-14 rounded flex-shrink-0 bg-[#1A1A1A] overflow-hidden relative border border-[var(--border)]">
+                      {event.listing.images?.[0] ? (
+                        <Image
+                          src={event.listing.images[0].url}
+                          alt={event.listing.sourceTitle}
+                          fill sizes="56px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-5 h-5 rounded-full border border-white/10" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex flex-col justify-center flex-1">
+                      <div className="font-mono text-[9px] tracking-[0.1em] uppercase text-gold/75 mb-0.5">
+                        {event.listing.brand}
+                      </div>
+                      <div className="text-[13px] font-medium text-ink truncate group-hover:text-gold transition-colors">
+                        {event.listing.model || event.listing.sourceTitle}
+                      </div>
+                      <div className="text-[11px] text-muted mt-0.5">
+                        {formatPrice(event.listing.price, event.listing.currency)}
+                      </div>
+                    </div>
+                    <span className="text-muted/60 text-[18px] flex items-center flex-shrink-0">›</span>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+          {/* Full-width drill-down — min-h-[44px] for touch */}
+          <Link
+            href="/friends"
+            className="flex items-center justify-between w-full min-h-[44px] py-3.5 text-[12px] text-muted hover:text-gold transition-colors border-t border-[var(--border)]"
+          >
+            <span>All activity from your circle</span>
+            <span className="text-[16px] leading-none">›</span>
+          </Link>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ─── Authenticated: new arrivals strip ────────────────────────────────────────
+// Horizontal scroll strip — feels native, doesn't compete with the feed above.
+// Uses WatchCard inside fixed-width wrappers so the grid layout is overridden.
+
+async function NewInPreview() {
+  const listings = await getNewArrivals(6);
+  if (!listings.length) return null;
+
+  return (
+    <>
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-8">
+        <div className="border-t border-[var(--border)]" />
+      </div>
+      <section className="py-6 sm:py-8 max-w-[1200px] mx-auto">
+        <div className="flex justify-between items-center px-4 sm:px-8 mb-4">
+          <h2 className="text-[1.1rem] font-semibold tracking-[-0.02em]">New in</h2>
+          <Link
+            href="/browse?sort=newest"
+            className="font-mono text-[10px] tracking-[0.1em] uppercase text-muted hover:text-gold transition-colors"
+          >
+            Browse all →
+          </Link>
+        </div>
+        <div className="flex gap-3 overflow-x-auto px-4 sm:px-8 pb-3 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+          {listings.map(watch => (
+            <div key={watch.id} className="w-[155px] sm:w-[175px] flex-shrink-0">
+              <WatchCard watch={watch} />
+            </div>
+          ))}
+          {/* Trailing spacer — overflow-x-auto clips end padding in most mobile browsers */}
+          <div className="w-4 sm:w-8 flex-shrink-0" />
+        </div>
+      </section>
+    </>
+  );
+}
+
+// ─── Authenticated: trending strip ───────────────────────────────────────────
+// Weekly-windowed popularity signal. Sits between the social feed (personal) and
+// New In (inventory freshness) — answers "what are collectors into right now?"
+// Falls back to all-time engaged when the 7-day window is thin.
+
+async function PopularSection({ userId }: { userId: string }) {
+  const listings = await getWeeklyTrending(6, userId);
+  if (listings.length < 3) return null;
+
+  return (
+    <>
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-8">
+        <div className="border-t border-[var(--border)]" />
+      </div>
+      <section className="py-6 sm:py-8 max-w-[1200px] mx-auto">
+        <div className="flex justify-between items-center px-4 sm:px-8 mb-4">
+          <h2 className="text-[1.1rem] font-semibold tracking-[-0.02em]">Popular this week</h2>
+          <Link
+            href="/browse?sort=most-liked"
+            className="font-mono text-[10px] tracking-[0.1em] uppercase text-muted hover:text-gold transition-colors"
+          >
+            See all →
+          </Link>
+        </div>
+        <div className="flex gap-3 overflow-x-auto px-4 sm:px-8 pb-3 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+          {listings.map(watch => (
+            <div key={watch.id} className="w-[155px] sm:w-[175px] flex-shrink-0">
+              <WatchCard watch={watch} />
+            </div>
+          ))}
+          <div className="w-4 sm:w-8 flex-shrink-0" />
+        </div>
+      </section>
+    </>
+  );
+}
+
+// ─── Public sections (used on the unauthenticated landing only) ───────────────
 
 async function EngagedSection() {
   const listings = await getEngagedListings(6);
@@ -157,6 +406,8 @@ async function EngagedSection() {
     </section>
   );
 }
+
+// ─── Shared section (both render paths) ───────────────────────────────────────
 
 async function NewInSection() {
   const listings = await getNewArrivals(8);

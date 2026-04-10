@@ -7,7 +7,7 @@ import { prisma } from '@/lib/db';
 import Link from 'next/link';
 import Image from 'next/image';
 import { WatchRollActions } from '@/components/watches/WatchRollActions';
-import { decodeHtmlEntities, formatPrice } from '@/lib/format';
+import { decodeHtmlEntities, formatPrice, timeAgoLong } from '@/lib/format';
 
 // DISCLAIMER: This page links to the original dealer website for purchase.
 // Chrono Consigliere is not a seller.
@@ -119,8 +119,8 @@ export default async function WatchDetailPage({ params }: PageProps) {
           </p>
         </div>
 
-        {/* Info panel */}
-        <div className="bg-surface lg:border-l border-t lg:border-t-0 border-[var(--border)] p-5 sm:p-7 overflow-y-auto">
+        {/* Info panel — extra bottom padding on mobile clears the sticky CTA strip */}
+        <div className="bg-surface lg:border-l border-t lg:border-t-0 border-[var(--border)] px-5 pt-5 pb-28 sm:p-7 overflow-y-auto">
           {knownBrand && (
             <div className="text-[11px] font-medium tracking-[0.14em] uppercase text-gold mb-1.5">{knownBrand}</div>
           )}
@@ -134,10 +134,17 @@ export default async function WatchDetailPage({ params }: PageProps) {
             ? 'text-[1rem] text-muted font-medium tracking-wide mb-1'
             : 'text-[2.2rem] font-semibold tracking-[-0.03em] mb-1'
           }>{price}</div>
-          <div className="flex items-center gap-1.5 text-[12px] text-[var(--success)] font-medium mb-5">
+          <div className="flex items-center gap-1.5 text-[12px] text-[var(--success)] font-medium mb-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] inline-block" />
             In Stock
             {watch.condition && ` — ${CONDITION_LABEL[watch.condition] ?? watch.condition}`}
+          </div>
+          {/* Listing age + collective save count — urgency and social validation */}
+          <div className="flex items-center justify-between text-[11px] mb-5">
+            <span className="text-muted/60">Added {timeAgoLong(new Date(watch.createdAt))}</span>
+            {watch.saveCount > 5 && (
+              <span className="font-mono text-muted/70">{watch.saveCount} saves</span>
+            )}
           </div>
 
           {/* Friend social proof */}
@@ -158,8 +165,8 @@ export default async function WatchDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* CTA buttons */}
-          <div className="flex gap-2 mb-6 flex-col xs:flex-row sm:flex-row">
+          {/* CTA buttons — desktop only (sticky bar handles mobile) */}
+          <div className="hidden md:flex gap-2 mb-3">
             <a
               href={watch.sourceUrl}
               target="_blank"
@@ -174,6 +181,15 @@ export default async function WatchDetailPage({ params }: PageProps) {
             />
           </div>
 
+          {/* Roll return link — shown when already saved/owned at page load */}
+          {(watch.isSaved || watch.isOwned) && (
+            <div className="hidden md:flex mb-5">
+              <Link href="/roll" className="text-[11px] font-mono text-muted hover:text-gold transition-colors">
+                ← Back to your Roll
+              </Link>
+            </div>
+          )}
+
           {/* Specs grid */}
           <div className="grid grid-cols-2 gap-px bg-[var(--border)] border border-[var(--border)] rounded overflow-hidden mb-5">
             {[
@@ -184,7 +200,6 @@ export default async function WatchDetailPage({ params }: PageProps) {
               ['Year', watch.year?.toString()],
               ['Condition', watch.condition ? CONDITION_LABEL[watch.condition] : null],
               ['Dial', watch.dialColor],
-              ['Currency', watch.currency],
             ].filter(([, v]) => v).map(([label, value]) => (
               <div key={label as string} className="bg-surface px-4 py-3">
                 <div className="text-[10px] uppercase tracking-[0.1em] text-muted mb-1">{label}</div>
@@ -224,6 +239,25 @@ export default async function WatchDetailPage({ params }: PageProps) {
           </div>
 
         </div>
+      </div>
+
+      {/* Sticky CTA strip — mobile only, floats above the bottom nav */}
+      <div
+        className="md:hidden fixed left-0 right-0 z-20 bg-surface border-t border-[var(--border)] px-4 py-3 flex gap-2"
+        style={{ bottom: 'calc(3.5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <a
+          href={watch.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 bg-gold text-black text-[11px] font-bold tracking-[0.1em] uppercase px-4 py-3 rounded text-center hover:bg-gold-dark transition-colors"
+        >
+          View at {watch.source.name} ↗
+        </a>
+        <WatchRollActions
+          watchId={watch.id}
+          initialState={watch.isOwned ? 'owned' : watch.isSaved ? 'favorites' : 'none'}
+        />
       </div>
     </div>
   );

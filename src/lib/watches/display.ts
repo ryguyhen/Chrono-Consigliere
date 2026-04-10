@@ -74,8 +74,8 @@ export function formatStyle(style: string | null): string | null {
 export type ListingUserState = 'owned' | 'saved' | 'none';
 
 export function getListingUserState(
-  isOwned: boolean | undefined,
-  isSaved: boolean | undefined,
+  isOwned: boolean | null | undefined,
+  isSaved: boolean | null | undefined,
 ): ListingUserState {
   if (isOwned) return 'owned';
   if (isSaved) return 'saved';

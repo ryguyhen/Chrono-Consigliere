@@ -115,10 +115,10 @@ export async function getWatches(
     prisma.watchListing.count({ where }),
   ]);
 
-  // Attach user-specific like/save state if logged in
-  let likedIds = new Set<string>();
-  let savedIds = new Set<string>();
-  let ownedIds = new Set<string>();
+  // Attach user-specific like/save state if logged in; null signals unauthenticated
+  let likedIds: Set<string> | null = null;
+  let savedIds: Set<string> | null = null;
+  let ownedIds: Set<string> | null = null;
   if (userId) {
     const ids = watches.map(w => w.id);
     const [likes, wishlistItems] = await Promise.all([
@@ -133,9 +133,9 @@ export async function getWatches(
   return {
     watches: watches.map(w => ({
       ...w,
-      isLiked: likedIds.has(w.id),
-      isSaved: savedIds.has(w.id),
-      isOwned: ownedIds.has(w.id),
+      isLiked: likedIds ? likedIds.has(w.id) : null,
+      isSaved: savedIds ? savedIds.has(w.id) : null,
+      isOwned: ownedIds ? ownedIds.has(w.id) : null,
     })) as WatchWithRelations[],
     total,
     page,
@@ -161,9 +161,9 @@ export async function getWatchById(
 
   if (!watch) return null;
 
-  let isLiked = false;
-  let isSaved = false;
-  let isOwned = false;
+  let isLiked: boolean | null = null;
+  let isSaved: boolean | null = null;
+  let isOwned: boolean | null = null;
   if (userId) {
     const [like, wishlistItem] = await Promise.all([
       prisma.like.findUnique({ where: { userId_listingId: { userId, listingId: id } } }),
@@ -235,7 +235,7 @@ export async function getEngagedListings(limit = 6): Promise<WatchWithRelations[
     ],
     take: limit,
   });
-  return listings.map(w => ({ ...w, isLiked: false, isSaved: false, isOwned: false })) as WatchWithRelations[];
+  return listings.map(w => ({ ...w, isLiked: null, isSaved: null, isOwned: null })) as WatchWithRelations[];
 }
 
 export async function getNewArrivals(limit = 8): Promise<WatchWithRelations[]> {
@@ -245,5 +245,75 @@ export async function getNewArrivals(limit = 8): Promise<WatchWithRelations[]> {
     orderBy: { createdAt: 'desc' },
     take: limit,
   });
-  return listings.map(w => ({ ...w, isLiked: false, isSaved: false, isOwned: false })) as WatchWithRelations[];
+  return listings.map(w => ({ ...w, isLiked: null, isSaved: null, isOwned: null })) as WatchWithRelations[];
+}
+
+// Listings most liked in the last 7 days, with fallback to all-time engaged.
+// Ranked by recent activity count so the list changes as collector interest shifts.
+// Accepts an optional userId to attach correct save state — callers on authenticated
+// surfaces should always pass userId to prevent WatchCard showing stale unsaved state.
+export async function getWeeklyTrending(limit = 6, userId?: string): Promise<WatchWithRelations[]> {
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  // Oversample (limit × 3) to account for unavailable/duplicate listings being filtered.
+  const recentLikes = await prisma.like.groupBy({
+    by: ['listingId'],
+    where: { createdAt: { gte: weekAgo } },
+    _count: { listingId: true },
+    orderBy: { _count: { listingId: 'desc' } },
+    take: limit * 3,
+  });
+
+  let rawListings: any[] = [];
+
+  if (recentLikes.length >= 3) {
+    const ids = recentLikes.map(l => l.listingId);
+    const fetched = await prisma.watchListing.findMany({
+      where: { ...PUBLIC_WHERE, id: { in: ids } },
+      select: LISTING_SELECT,
+    });
+    // Preserve the weekly-rank order from the groupBy
+    const byId = new Map(fetched.map(l => [l.id, l]));
+    const ordered = ids.map(id => byId.get(id)).filter(Boolean);
+    if (ordered.length >= 3) {
+      rawListings = ordered.slice(0, limit);
+    }
+  }
+
+  // Fallback: all-time engaged listings (same signal as public home but as a fallback only)
+  if (rawListings.length < 3) {
+    rawListings = await prisma.watchListing.findMany({
+      where: {
+        ...PUBLIC_WHERE,
+        OR: [{ likeCount: { gt: 0 } }, { saveCount: { gt: 0 } }],
+      },
+      select: LISTING_SELECT,
+      orderBy: [{ likeCount: 'desc' }, { saveCount: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+    });
+  }
+
+  if (!rawListings.length) {
+    return [];
+  }
+
+  // Attach save/owned state if logged in — prevents WatchCard showing wrong button state
+  let savedIds: Set<string> | null = null;
+  let ownedIds: Set<string> | null = null;
+  if (userId) {
+    const ids = rawListings.map((l: any) => l.id);
+    const wishlistItems = await prisma.wishlistItem.findMany({
+      where: { userId, listingId: { in: ids } },
+      select: { listingId: true, list: true },
+    });
+    savedIds = new Set(wishlistItems.filter(s => s.list === 'FAVORITES').map(s => s.listingId));
+    ownedIds = new Set(wishlistItems.filter(s => s.list === 'OWNED').map(s => s.listingId));
+  }
+
+  return rawListings.map((w: any) => ({
+    ...w,
+    isLiked: null,
+    isSaved: savedIds ? savedIds.has(w.id) : null,
+    isOwned: ownedIds ? ownedIds.has(w.id) : null,
+  })) as WatchWithRelations[];
 }
