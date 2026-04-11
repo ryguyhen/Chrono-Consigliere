@@ -255,9 +255,21 @@ export class WatchnetJapanAdapter extends ShopifyBaseAdapter {
           continue;
         }
 
-        // Primary image from og:image
+        // Extract gallery images from the slider-gallery lightcase anchors.
+        // Each <a href="https://www.watchnet.co.jp/media/..."> is a full-res image
+        // (1000×1000 or 1240×NNN). These are statically in the HTML — no lazy loading.
+        // Protocol-relative //www.watchnet.co.jp/media/ <img src> tags (thumbnail strip)
+        // are intentionally excluded by requiring the absolute https:// scheme.
+        // Falls back to og:image on pages that don't use the lightcase gallery.
+        const galleryMatches = [
+          ...html.matchAll(/href="(https:\/\/www\.watchnet\.co\.jp\/media\/[^"]+\.(?:jpg|jpeg|png|webp))"/gi),
+        ];
         const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1] ?? null;
-        const images = ogImage ? [{ url: ogImage, isPrimary: true }] : [];
+        const images = galleryMatches.length > 0
+          ? galleryMatches.map((m, i) => ({ url: m[1], isPrimary: i === 0 }))
+          : ogImage
+            ? [{ url: ogImage, isPrimary: true }]
+            : [];
 
         // Price in JPY (stored as-is; UI can format/convert)
         const priceMatch = html.match(/<p class="price">&yen;([\d,]+)/);
