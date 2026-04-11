@@ -55,6 +55,28 @@ export function timeAgoLong(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
+/**
+ * Resize a Shopify CDN image URL by injecting Shopify's `_Nx` size suffix.
+ *
+ * Shopify CDN serves pre-resized images at URLs like `image_600x.jpg` — no extra
+ * infrastructure needed. This lets Next.js Image optimizer fetch a small source
+ * instead of a full-resolution upload (often 1500px+), which is the primary cause
+ * of slow cold-cache browse images.
+ *
+ * Non-Shopify URLs are returned unchanged.
+ *
+ * Examples:
+ *   image.jpg            → image_600x.jpg
+ *   image_1024x1024.jpg  → image_600x.jpg   (strips existing size suffix)
+ *   image.jpg?v=12345    → image_600x.jpg?v=12345
+ *   https://example.com/ → unchanged
+ */
+export function shopifyThumbnailUrl(url: string, width = 600): string {
+  if (!url.includes('cdn.shopify.com')) return url;
+  // Strip any existing _NNNx or _NNNxNNN suffix, then inject the desired width
+  return url.replace(/(_\d+x\d*)?(\.[\w]+)(\?|$)/, `_${width}x$2$3`);
+}
+
 export function decodeHtmlEntities(text: string): string {
   return text
     // Named entities first

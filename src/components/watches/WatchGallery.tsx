@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
+import { shopifyThumbnailUrl } from '@/lib/format';
 
 interface GalleryImage {
   id: string;
@@ -60,7 +61,7 @@ export function WatchGallery({ images, title, sourceName }: WatchGalleryProps) {
         {active ? (
           <>
             <Image
-              src={active.url}
+              src={shopifyThumbnailUrl(active.url, 800)}
               alt={active.altText ?? title}
               fill
               sizes="500px"
@@ -112,7 +113,7 @@ export function WatchGallery({ images, title, sourceName }: WatchGalleryProps) {
               }`}
               aria-label={`View image ${i + 1}`}
             >
-              <Image src={img.url} alt={`Image ${i + 1}`} fill sizes="56px" className="object-cover" />
+              <Image src={shopifyThumbnailUrl(img.url, 200)} alt={`Image ${i + 1}`} fill sizes="56px" className="object-cover" />
             </button>
           ))}
         </div>

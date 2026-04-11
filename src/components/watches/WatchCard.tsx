@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { WatchWithRelations } from '@/types';
-import { decodeHtmlEntities, formatPrice } from '@/lib/format';
+import { decodeHtmlEntities, formatPrice, shopifyThumbnailUrl } from '@/lib/format';
 import { CONDITION_LABEL_SHORT } from '@/lib/watches/display';
 import { saveListing, unsaveListing } from '@/lib/api/client';
 
@@ -18,6 +18,7 @@ interface WatchCardProps {
 
 export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
   const [saved, setSaved] = useState(watch.isSaved ?? false);
+  const [imgFailed, setImgFailed] = useState(false);
   const isOwned = watch.isOwned ?? false;
   const friendCount = watch.friendLikes?.length ?? 0;
   const displayTitle = decodeHtmlEntities(watch.model || watch.sourceTitle);
@@ -42,6 +43,10 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
   }
 
   const primaryImage = watch.images?.[0];
+  // For Shopify sources: request a 600px thumbnail from Shopify CDN so Next.js
+  // optimizer fetches a small source instead of the full 1500px+ original.
+  // Non-Shopify URLs are returned unchanged.
+  const thumbnailSrc = primaryImage ? shopifyThumbnailUrl(primaryImage.url) : null;
 
   return (
     <Link
@@ -50,14 +55,16 @@ export function WatchCard({ watch, onSave, priority = false }: WatchCardProps) {
     >
       {/* Image */}
       <div className="relative aspect-[4/5] bg-[#1A1A1A] overflow-hidden">
-        {primaryImage ? (
+        {thumbnailSrc && !imgFailed ? (
           <Image
-            src={primaryImage.url}
-            alt={primaryImage.altText ?? displayTitle}
+            src={thumbnailSrc}
+            alt={primaryImage!.altText ?? displayTitle}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
             className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             priority={priority}
+            quality={65}
+            onError={() => setImgFailed(true)}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
