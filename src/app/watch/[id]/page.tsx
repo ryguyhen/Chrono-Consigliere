@@ -5,8 +5,8 @@ import { authOptions } from '@/lib/auth/auth.config';
 import { getWatchById } from '@/lib/watches/queries';
 import { prisma } from '@/lib/db';
 import Link from 'next/link';
-import Image from 'next/image';
 import { WatchRollActions } from '@/components/watches/WatchRollActions';
+import { WatchGallery } from '@/components/watches/WatchGallery';
 import { decodeHtmlEntities, formatPrice, timeAgoLong } from '@/lib/format';
 
 // DISCLAIMER: This page links to the original dealer website for purchase.
@@ -59,7 +59,6 @@ export default async function WatchDetailPage({ params }: PageProps) {
 
   const price = formatPrice(watch.price, watch.currency);
   const isPOR = !watch.price || watch.price <= 0;
-  const primaryImage = watch.images?.[0];
   const allImages = watch.images;
   const displayTitle = decodeHtmlEntities(watch.model || watch.sourceTitle);
   const knownBrand = watch.brand && watch.brand !== 'Unknown' ? watch.brand : null;
@@ -81,43 +80,7 @@ export default async function WatchDetailPage({ params }: PageProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] min-h-[calc(100vh-96px)]">
         {/* Image panel */}
-        <div className="bg-[#161616] flex flex-col items-center justify-center p-4 sm:p-8 min-h-[300px] sm:min-h-[400px]">
-          <div className="relative w-full max-w-[500px] aspect-square rounded-lg overflow-hidden">
-            {primaryImage ? (
-              <Image
-                src={primaryImage.url}
-                alt={primaryImage.altText ?? displayTitle}
-                fill
-                sizes="500px"
-                className="object-contain"
-                priority
-              />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-48 h-48 rounded-full border-4 border-ink/10 flex items-center justify-center">
-                  <div className="w-36 h-36 rounded-full border-2 border-ink/[0.07] flex items-center justify-center">
-                    <div className="font-mono text-[9px] tracking-widest uppercase text-ink/20">Dial</div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Thumbnails */}
-          {allImages.length > 1 && (
-            <div className="flex gap-2 mt-4 flex-wrap justify-center">
-              {allImages.slice(0, 6).map((img, i) => (
-                <div key={img.id} className="relative w-16 h-16 rounded border border-[var(--border)] overflow-hidden bg-white">
-                  <Image src={img.url} alt={`Image ${i + 1}`} fill sizes="64px" className="object-cover" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          <p className="text-[10px] text-muted/60 mt-4 text-center italic max-w-[320px]">
-            All photos from {watch.source.name}. View the original listing for complete photography.
-          </p>
-        </div>
+        <WatchGallery images={allImages} title={displayTitle} sourceName={watch.source.name} />
 
         {/* Info panel — extra bottom padding on mobile clears the sticky CTA strip */}
         <div className="bg-surface lg:border-l border-t lg:border-t-0 border-[var(--border)] px-5 pt-5 pb-28 sm:p-7 overflow-y-auto">
