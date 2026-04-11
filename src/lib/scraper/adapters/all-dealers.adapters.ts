@@ -226,14 +226,25 @@ export class WatchnetJapanAdapter extends ShopifyBaseAdapter {
           continue;
         }
 
-        const viewMatches = [...catHtml.matchAll(/href="(https:\/\/www\.watchnet\.co\.jp\/en\/item\/view\/\d+)"/g)];
-        viewMatches.forEach(m => productUrls.add(m[1]));
+        // Map immediately to URL strings — spreaded matchAll results hold an `input`
+        // reference to the full catHtml string; extracting only m[1] releases that reference.
+        [...catHtml.matchAll(/href="(https:\/\/www\.watchnet\.co\.jp\/en\/item\/view\/\d+)"/g)]
+          .map(m => m[1])
+          .forEach(u => productUrls.add(u));
       } catch { /* skip failed category */ }
     }
-    this.log('info', `Found ${productUrls.size} product URLs`);
+    // Cap product URLs so a very large site can't exhaust container memory.
+    // Watchnet Japan scraper runs in the same process as the web server;
+    // unbounded product fetching causes OOM kills on Railway's container.
+    const MAX_PRODUCTS = 500;
+    const productUrlList = [...productUrls].slice(0, MAX_PRODUCTS);
+    if (productUrls.size > MAX_PRODUCTS) {
+      this.log('warn', `Product URL list capped at ${MAX_PRODUCTS} (site has ${productUrls.size})`);
+    }
+    this.log('info', `Scraping ${productUrlList.length} product pages`);
 
     // Step 3: Scrape each product detail page
-    for (const url of productUrls) {
+    for (const url of productUrlList) {
       try {
         await this.delay();
         const res = await fetch(url, { headers });
@@ -261,12 +272,17 @@ export class WatchnetJapanAdapter extends ShopifyBaseAdapter {
         // Protocol-relative //www.watchnet.co.jp/media/ <img src> tags (thumbnail strip)
         // are intentionally excluded by requiring the absolute https:// scheme.
         // Falls back to og:image on pages that don't use the lightcase gallery.
-        const galleryMatches = [
+        // Extract gallery image URLs immediately as strings — match objects hold an
+        // `input` reference to the full html string, so we map to m[1] right away
+        // to release that reference and allow GC to collect html between iterations.
+        const galleryUrls = [
           ...html.matchAll(/href="(https:\/\/www\.watchnet\.co\.jp\/media\/[^"]+\.(?:jpg|jpeg|png|webp))"/gi),
-        ];
-        const ogImage = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1] ?? null;
-        const images = galleryMatches.length > 0
-          ? galleryMatches.map((m, i) => ({ url: m[1], isPrimary: i === 0 }))
+        ].map(m => m[1]).slice(0, 12);
+        const ogImage = galleryUrls.length === 0
+          ? (html.match(/<meta property="og:image" content="([^"]+)"/)?.[1] ?? null)
+          : null;
+        const images = galleryUrls.length > 0
+          ? galleryUrls.map((url, i) => ({ url, isPrimary: i === 0 }))
           : ogImage
             ? [{ url: ogImage, isPrimary: true }]
             : [];
