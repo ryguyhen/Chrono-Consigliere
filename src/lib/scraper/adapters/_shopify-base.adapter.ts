@@ -97,6 +97,9 @@ const DEFAULT_TITLE_EXCLUSIONS = [
   'watch winder',   // winder units (tag layer catches most; this is title fallback)
   'watch roll',     // watch travel roll/pouch — never appears in a watch product title
   ' pouch',         // space-prefix avoids matching compound words; catches "watch pouch", "travel pouch"
+  'brass sign',     // dealer/retailer brass display signs — "Sign" ≠ "Signage", needs separate term
+  'dealer sign',    // dealer display signs
+  'retailer sign',  // retailer display signs
 ];
 
 export abstract class ShopifyBaseAdapter extends BaseAdapter {

@@ -14,9 +14,14 @@ const PAGE_SIZE = 24;
  */
 const BROWSE_TITLE_BLOCKLIST = [
   // Retail signage & display items
+  // Note: 'signage' catches "Brass Case Signage"; 'brass sign' catches "Brass Sign - Small"
+  // (different words — one does not subsume the other)
   'signage',
   'display stand',
   'display case',
+  'brass sign',     // e.g. "Rolex 'Official Retailer' Brass Sign - Small" — slips past 'signage'
+  'dealer sign',    // generic dealer display signs
+  'retailer sign',  // generic retailer display signs
   // Branded textile merchandise
   'silk scarf',
   ' scarf',       // space-prefix avoids matching "scarface" watch nicknames

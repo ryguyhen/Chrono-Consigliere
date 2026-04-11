@@ -598,6 +598,12 @@ export class CollectorsCornerNYAdapter extends ShopifyBaseAdapter {
         'coronet',     // e.g. "Rolex Yellow Gold Coronet Pin" (coronet = Rolex logo pin)
         'key ring',    // branded key accessories
         'umbrella',    // branded merchandise
+        // Dealer display ephemera — signs, signage, display hardware
+        // Note: 'signage' is in DEFAULT_TITLE_EXCLUSIONS but "Brass Sign" != "Signage"
+        'brass sign',      // e.g. "Rolex 'Official Retailer' Brass Sign - Small"
+        'dealer sign',     // generic dealer display signs
+        'retailer sign',   // generic retailer display signs
+        'display sign',    // display hardware signs
       ],
 
       rateLimit: 2000,
