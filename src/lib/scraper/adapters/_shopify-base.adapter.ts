@@ -95,6 +95,8 @@ const DEFAULT_TITLE_EXCLUSIONS = [
   'key chain',      // branded key accessories
   'display stand',  // retail display hardware
   'watch winder',   // winder units (tag layer catches most; this is title fallback)
+  'watch roll',     // watch travel roll/pouch — never appears in a watch product title
+  ' pouch',         // space-prefix avoids matching compound words; catches "watch pouch", "travel pouch"
 ];
 
 export abstract class ShopifyBaseAdapter extends BaseAdapter {

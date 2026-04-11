@@ -24,10 +24,12 @@ const BROWSE_TITLE_BLOCKLIST = [
   'key pouch',
   'key chain',
   'key ring',
-  // Watch accessories / bracelets / straps that are not watches
+  // Watch accessories / bracelets / straps / rolls / pouches that are not watches
   'watch winder',
-  'bracelet',       // metal/leather bracelets — "bracelet" never appears in a real watch product title
+  'bracelet',       // metal/leather bracelets — never appears in a real watch product title
   ' strap',         // space-prefix avoids "bootstrap" — catches "nato strap", "rubber strap", etc.
+  'watch roll',     // watch travel rolls — never appears in a real watch product title
+  ' pouch',         // space-prefix avoids compound words — catches "watch pouch", "leather pouch"
   // Pins & wearable accessories
   'coronet pin',
   'lapel pin',

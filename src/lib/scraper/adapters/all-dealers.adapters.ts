@@ -144,9 +144,26 @@ export class WatchnetJapanAdapter extends ShopifyBaseAdapter {
     });
   }
 
+  // Category page <title> substrings that identify non-watch categories.
+  // Checked against each category's <title> tag before pulling product URLs.
+  // Conservative: use only terms that cannot appear in a watch category name.
+  private static readonly NON_WATCH_CATEGORY_TERMS = [
+    'bracelet', 'bracelets',
+    'strap', 'straps',
+    'pouch', 'pouches',
+    'accessory', 'accessories',
+    'winder', 'winders',
+    'watch roll', 'watch rolls',
+    'parts',
+    'tools',
+    'buckle',
+    'clasp',
+    'storage',
+  ] as const;
+
   // Title terms that identify non-watch accessories on this site.
   // Applied after title extraction — any match skips the listing.
-  // Keep conservative: only terms that cannot appear in a real watch product title.
+  // Belt-and-suspenders with category filtering above.
   private static readonly TITLE_EXCLUSIONS = [
     'bracelet',
     'bracelets',
@@ -161,8 +178,15 @@ export class WatchnetJapanAdapter extends ShopifyBaseAdapter {
     'clasp',
     'watch winder',
     'winder',
+    'watch roll',
+    'watch rolls',
+    'travel roll',
+    'pouch',
+    'pouches',
     'parts',
     'spare parts',
+    'storage case',
+    'watch box',
   ] as const;
 
   async scrape(): Promise<ScrapeResult> {
@@ -184,13 +208,24 @@ export class WatchnetJapanAdapter extends ShopifyBaseAdapter {
     const categoryIds = [...new Set(catMatches.map(m => m[1]).filter(id => id !== '24'))];
     this.log('info', `Found ${categoryIds.length} active categories`);
 
-    // Step 2: Collect unique product view URLs from each category listing
+    // Step 2: Collect unique product view URLs from each watch category.
+    // Each category page's <title> tag is checked against NON_WATCH_CATEGORY_TERMS
+    // before collecting product URLs — non-watch categories contribute zero products.
     const productUrls = new Set<string>();
     for (const catId of categoryIds) {
       await this.delay();
       try {
         const catRes = await fetch(`${this.config.baseUrl}/en/item/index/${catId}`, { headers });
         const catHtml = await catRes.text();
+
+        // Category-level non-watch check via <title> tag (e.g. "Bracelets | Private Eyes")
+        const catTitle = (catHtml.match(/<title>([^<]+)<\/title>/i)?.[1] ?? '').toLowerCase();
+        const blockedCategory = WatchnetJapanAdapter.NON_WATCH_CATEGORY_TERMS.find(t => catTitle.includes(t));
+        if (blockedCategory) {
+          this.log('info', `Skipping non-watch category ${catId} ("${catTitle.trim()}")`);
+          continue;
+        }
+
         const viewMatches = [...catHtml.matchAll(/href="(https:\/\/www\.watchnet\.co\.jp\/en\/item\/view\/\d+)"/g)];
         viewMatches.forEach(m => productUrls.add(m[1]));
       } catch { /* skip failed category */ }
