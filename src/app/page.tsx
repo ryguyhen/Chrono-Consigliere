@@ -15,8 +15,11 @@ import { getEngagedListings, getNewArrivals, getWeeklyTrending } from '@/lib/wat
 import { getFeedForUser } from '@/lib/social/feed-service';
 import { WatchCard } from '@/components/watches/WatchCard';
 import { prisma } from '@/lib/db';
+import { getPublicLandingStats } from '@/lib/landing/public-stats';
 import { Suspense } from 'react';
 import { formatPrice, timeAgo } from '@/lib/format';
+
+export const dynamic = 'force-dynamic';
 
 const MIN_ENGAGED = 3;
 
@@ -56,9 +59,8 @@ export default async function RootPage() {
   // Marketing data only fetched for unauthenticated visitors.
   const ACTIVE_LISTING = { isAvailable: true, source: { isActive: true } } as const;
 
-  const [stats, dealerCount, recentTicker] = await Promise.all([
-    prisma.watchListing.aggregate({ where: ACTIVE_LISTING, _count: { id: true } }),
-    prisma.dealerSource.count({ where: { isActive: true } }),
+  const [{ inStockWatchCount, curatedDealerCount }, recentTicker] = await Promise.all([
+    getPublicLandingStats(),
     prisma.watchListing.findMany({
       where: { ...ACTIVE_LISTING, brand: { not: 'Unknown' } },
       orderBy: { createdAt: 'desc' },
@@ -69,8 +71,6 @@ export default async function RootPage() {
       },
     }),
   ]);
-
-  const totalListings = stats._count.id;
 
   return (
     <div>
@@ -102,8 +102,8 @@ export default async function RootPage() {
           </div>
           <div className="flex justify-center gap-10 sm:gap-16 mt-12 sm:mt-20 pt-8 border-t border-white/[0.07]">
             {[
-              [totalListings.toLocaleString(), 'In-stock watches'],
-              [dealerCount.toString(), 'Curated dealers'],
+              [inStockWatchCount.toLocaleString(), 'In-stock watches'],
+              [curatedDealerCount.toString(), 'Curated dealers'],
             ].map(([n, l]) => (
               <div key={l}>
                 <div className="text-[1.8rem] sm:text-[2.2rem] font-semibold text-white tracking-[-0.03em]">{n}</div>
