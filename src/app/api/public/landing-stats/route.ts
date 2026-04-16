@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClientIp, RATE_LIMITS, rateLimit, rateLimitResponse } from '@/lib/rate-limit';
-import { getPublicLandingStats } from '@/lib/landing/public-stats';
+import { getActiveDealers, getPublicLandingStats } from '@/lib/landing/public-stats';
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   if (!rl.success) return rateLimitResponse(rl);
 
   try {
-    const stats = await getPublicLandingStats();
-    return NextResponse.json(stats);
+    const [stats, dealers] = await Promise.all([getPublicLandingStats(), getActiveDealers()]);
+    return NextResponse.json({ ...stats, dealers });
   } catch (err) {
     console.error('[GET /api/public/landing-stats]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
