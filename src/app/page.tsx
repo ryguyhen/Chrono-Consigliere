@@ -15,6 +15,7 @@ import { getEngagedListings, getNewArrivals, getWeeklyTrending } from '@/lib/wat
 import { getFeedForUser } from '@/lib/social/feed-service';
 import { WatchCard } from '@/components/watches/WatchCard';
 import { getActiveDealers, getPublicLandingStats } from '@/lib/landing/public-stats';
+import { DealerRail } from '@/components/landing/DealerRail';
 import { Suspense } from 'react';
 import { formatPrice, timeAgo } from '@/lib/format';
 
@@ -351,11 +352,10 @@ async function PopularSection({ userId }: { userId: string }) {
 
 // ─── Public sections (used on the unauthenticated landing only) ───────────────
 
-// Curated dealers — horizontal scroll rail linking into filtered browse results.
+// Curated dealers — auto-scrolling rail linking into filtered browse results.
 // No logos (none available). Ordered by listing count so the most-stocked
 // dealers appear first. Automatically reflects active dealer sources in the DB.
-// Single rail on all viewports (consistent with watch strips used in auth home).
-// Right-edge fade is a pure-CSS scroll cue — no marquee, no auto-scroll.
+// Auto-scroll is rAF-driven (40px/s), pauses on hover/touch, loops seamlessly.
 
 function DealersSection({ dealers }: { dealers: { name: string; slug: string }[] }) {
   if (!dealers.length) return null;
@@ -382,24 +382,7 @@ function DealersSection({ dealers }: { dealers: { name: string; slug: string }[]
             Browse all →
           </Link>
         </div>
-        {/* Scroll rail — overflow-x-auto, hidden scrollbar, edge-to-edge */}
-        <div className="relative">
-          <div className="flex gap-2 overflow-x-auto px-4 sm:px-8 pb-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
-            {dealers.map((dealer) => (
-              <Link
-                key={dealer.slug}
-                href={`/browse?dealer=${dealer.slug}`}
-                className="flex-shrink-0 inline-flex items-center px-3.5 py-1.5 border border-[var(--border)] rounded text-[12px] sm:text-[13px] text-ink/60 hover:border-gold/40 hover:text-gold transition-colors"
-              >
-                {dealer.name}
-              </Link>
-            ))}
-            {/* Trailing spacer — overflow-x-auto clips end padding on most mobile browsers */}
-            <div className="w-4 sm:w-8 flex-shrink-0" />
-          </div>
-          {/* Right-edge fade — signals overflow without auto-scrolling or marquee */}
-          <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-16 bg-gradient-to-l from-[var(--bg,#111)] to-transparent" />
-        </div>
+        <DealerRail dealers={dealers} />
       </section>
     </>
   );
