@@ -32,40 +32,52 @@ export async function GET(
 
   const isOwnProfile = viewerId === profile.userId;
 
-  const isFollowing =
+  const [isFollowing, followsYou, saves] = await Promise.all([
     viewerId && !isOwnProfile
-      ? !!(await prisma.follow.findUnique({
+      ? prisma.follow.findUnique({
           where: {
             followerId_followingId: {
               followerId: viewerId,
               followingId: profile.userId,
             },
           },
-        }))
-      : false;
+        }).then(Boolean)
+      : Promise.resolve(false),
 
-  const saves = await prisma.wishlistItem.findMany({
-    where: { userId: profile.userId },
-    include: {
-      listing: {
-        select: {
-          id: true,
-          brand: true,
-          model: true,
-          sourceTitle: true,
-          price: true,
-          currency: true,
-          images: {
-            where: { isPrimary: true },
-            take: 1,
-            select: { url: true },
+    viewerId && !isOwnProfile
+      ? prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: profile.userId,
+              followingId: viewerId,
+            },
+          },
+        }).then(Boolean)
+      : Promise.resolve(false),
+
+    prisma.wishlistItem.findMany({
+      where: { userId: profile.userId },
+      include: {
+        listing: {
+          select: {
+            id: true,
+            brand: true,
+            model: true,
+            sourceTitle: true,
+            price: true,
+            currency: true,
+            images: {
+              where: { isPrimary: true },
+              take: 1,
+              select: { url: true },
+            },
           },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 6,
-  });
+      orderBy: { createdAt: 'desc' },
+      take: 9,
+    }),
+  ]);
 
   return NextResponse.json({
     profile: {
@@ -82,6 +94,7 @@ export async function GET(
         followers: profile.user._count.followers,
       },
       isFollowing,
+      followsYou,
       isOwnProfile,
     },
     recentSaves: saves.map((s) => ({
