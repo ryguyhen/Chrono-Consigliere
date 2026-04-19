@@ -30,6 +30,7 @@ import {
   KawaiiVintageWatchAdapter,
   BulangAndSonsAdapter,
   ACollectedManAdapter,
+  WatchBrothersLondonAdapter,
 } from './adapters/all-dealers.adapters';
 
 type AdapterConstructor = new () => BaseAdapter;
@@ -52,6 +53,7 @@ export const ADAPTER_REGISTRY: Record<string, AdapterConstructor> = {
   KawaiiVintageWatchAdapter,     // kawaiivintagewatch.com
   BulangAndSonsAdapter,          // bulangandsons.com
   ACollectedManAdapter,          // acollectedman.com
+  WatchBrothersLondonAdapter,    // watchbrotherslondon.com
 
   // ── WooCommerce (Store API + Playwright fallback) ──────────
   VintageWatchServicesAdapter,   // vintagewatchservices.eu

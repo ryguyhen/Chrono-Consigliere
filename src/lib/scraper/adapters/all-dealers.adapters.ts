@@ -1412,3 +1412,24 @@ export class ACollectedManAdapter extends ShopifyBaseAdapter {
     return vendor ?? parsed.brand ?? null;
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// 22. WATCH BROTHERS LONDON [Squarespace] — London, UK
+//     URL: watchbrotherslondon.com
+//     Platform: Squarespace — ?format=json API on /sales-corner (~350 items)
+//     Currency: GBP
+//     Availability: variants[].qtyInStock > 0 (handled by SquarespaceBaseAdapter)
+//     Inquiry-priced items (priceCents = 0) are included — isAvailable drives browse.
+// ─────────────────────────────────────────────────────────────
+export class WatchBrothersLondonAdapter extends SquarespaceBaseAdapter {
+  constructor() {
+    super({
+      sourceId: '',
+      sourceName: 'Watch Brothers London',
+      baseUrl: 'https://www.watchbrotherslondon.com',
+      listingUrl: 'https://www.watchbrotherslondon.com/sales-corner',
+      currency: 'GBP',
+      rateLimit: 2000,
+    });
+  }
+}

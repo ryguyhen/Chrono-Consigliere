@@ -124,6 +124,19 @@ export const ALL_DEALERS = [
     isActive: true,
   },
 
+  {
+    name: 'Watch Brothers London',
+    slug: 'watch-brothers-london',
+    baseUrl: 'https://www.watchbrotherslondon.com',
+    adapterName: 'WatchBrothersLondonAdapter',
+    scrapeConfig: {
+      platform: 'squarespace',
+      listingPage: '/sales-corner',
+      note: 'London-based dealer, GBP pricing, ~350 listings',
+    },
+    isActive: true,
+  },
+
   // ── WooCommerce dealers ─────────────────────────────────────
   {
     name: 'Vintage Watch Services',
