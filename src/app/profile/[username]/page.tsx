@@ -7,6 +7,7 @@ import { getTasteOverlap } from '@/lib/social/feed-service';
 import { WatchCard } from '@/components/watches/WatchCard';
 import { FollowButton } from '@/components/profile/FollowButton';
 import { EditProfileButton } from '@/components/profile/EditProfileButton';
+import { LogoutButton } from '@/components/profile/LogoutButton';
 import type { WatchWithRelations } from '@/types';
 import Link from 'next/link';
 
@@ -214,6 +215,26 @@ export default async function ProfilePage({ params }: PageProps) {
               {isOwnProfile && (
                 <div className="aspect-[4/3] rounded-lg border border-dashed border-[var(--border)] flex items-center justify-center cursor-pointer hover:border-gold text-muted hover:text-gold transition-colors text-[12px]">
                   + New collection
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Account actions — own profile only.
+            Primary mobile-accessible logout path; the top-nav sign-out is
+            hidden below sm:. Anchored at the bottom of the profile page so
+            it's predictable across screen sizes without crowding the header. */}
+        {isOwnProfile && (
+          <div className="mt-12 pt-8 border-t border-[var(--border)]">
+            <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted mb-4">
+              Account
+            </div>
+            <div className="max-w-[320px]">
+              <LogoutButton />
+              {session?.user?.email && (
+                <div className="text-[11px] text-muted/70 mt-3 truncate">
+                  Signed in as {session.user.email}
                 </div>
               )}
             </div>

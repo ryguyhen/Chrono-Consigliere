@@ -130,7 +130,7 @@ export function Nav({ session }: NavProps) {
               </Link>
               <button
                 onClick={() => signOut({ callbackUrl: '/' })}
-                className="hidden sm:block text-[11px] text-white/25 hover:text-white/55 transition-colors tracking-wide"
+                className="text-[11px] text-white/45 hover:text-white/80 transition-colors tracking-wide min-h-[44px] px-1"
               >
                 Sign out
               </button>
