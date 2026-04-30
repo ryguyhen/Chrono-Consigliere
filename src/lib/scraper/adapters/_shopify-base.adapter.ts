@@ -113,6 +113,11 @@ const DEFAULT_TITLE_EXCLUSIONS = [
   'earring',
   'cufflink',
   'cuff link',
+  // Desk/valet items
+  'valet tray',
+  'catch-all',
+  'catchall',
+  ' tray',
 ];
 
 export abstract class ShopifyBaseAdapter extends BaseAdapter {

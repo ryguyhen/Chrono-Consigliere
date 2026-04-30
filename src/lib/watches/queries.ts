@@ -58,6 +58,11 @@ const BROWSE_TITLE_BLOCKLIST = [
   'earring',
   'cufflink',
   'cuff link',
+  // Desk/valet items — trays, catch-alls, etc.
+  'valet tray',
+  'catch-all',
+  'catchall',
+  ' tray',          // space-prefix avoids matching compound words like "betray"
 ] as const;
 
 /**
